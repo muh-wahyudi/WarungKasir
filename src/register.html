@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Buat Akun - WarungKasir</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="showcase">
+    <a class="brand" href="login.html"><span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg></span><span>WarungKasir</span></a>
+    <div class="showcase-copy">
+      <h2>Catat penjualan, pantau untung, kelola stok.</h2>
+      <p>Kasir digital untuk warung, toko kecil, dan UMKM.</p>
+    </div>
+    <img src="assets/illustration.svg" alt="Ilustrasi dasbor penjualan dan struk kasir digital">
+  </aside>
+  <main class="panel">
+    <section class="card wide">
+      <a class="brand brand-mobile" href="login.html"><span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg></span><span>WarungKasir</span></a>
+      <h1>Buat Akun Baru</h1>
+      <p class="lead">Mulai kelola transaksi dan stok usaha Anda secara digital.</p>
+      <div id="alert" class="alert" role="alert"></div>
+      <form id="register-form">
+        <div class="field">
+          <label for="name">Nama lengkap</label>
+          <div class="control"><span class="ico user" aria-hidden="true"></span>
+            <input id="name" name="name" type="text" placeholder="Nama Anda" autocomplete="name" required></div>
+        </div>
+        <div class="field">
+          <label for="business">Nama usaha atau warung</label>
+          <div class="control"><span class="ico store" aria-hidden="true"></span>
+            <input id="business" name="business" type="text" placeholder="Contoh: Warung Bu Sari" autocomplete="organization" required></div>
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <div class="control"><span class="ico mail" aria-hidden="true"></span>
+            <input id="email" name="email" type="email" placeholder="nama@email.com" autocomplete="email" required></div>
+        </div>
+        <div class="field">
+          <label for="phone">Nomor HP</label>
+          <div class="control"><span class="ico phone" aria-hidden="true"></span>
+            <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="081234567890" autocomplete="tel" required></div>
+        </div>
+        <div class="field">
+          <label for="password">Kata sandi</label>
+          <div class="control has-toggle"><span class="ico lock" aria-hidden="true"></span>
+            <input id="password" name="password" type="password" placeholder="Minimal 8 karakter" autocomplete="new-password" minlength="8" required>
+            <button type="button" class="toggle" aria-label="Tampilkan kata sandi" aria-pressed="false"><span class="ico eye" aria-hidden="true"></span></button></div>
+        </div>
+        <div class="field">
+          <label for="confirm">Konfirmasi kata sandi</label>
+          <div class="control has-toggle"><span class="ico lock" aria-hidden="true"></span>
+            <input id="confirm" name="confirm" type="password" placeholder="Ulangi kata sandi" autocomplete="new-password" required>
+            <button type="button" class="toggle" aria-label="Tampilkan kata sandi" aria-pressed="false"><span class="ico eye" aria-hidden="true"></span></button></div>
+        </div>
+        <div class="terms">
+          <label class="check"><input type="checkbox" name="terms" required>
+            <span>Saya menyetujui <a href="#">Syarat dan Ketentuan</a></span></label>
+        </div>
+        <button class="btn" type="submit">Buat Akun</button>
+      </form>
+      <p class="switch">Sudah punya akun? <a href="login.html">Masuk</a></p>
+    </section>
+  </main>
+</div>
+<script src="js/main.js"></script>
+</body>
+</html>

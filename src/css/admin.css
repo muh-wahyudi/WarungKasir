@@ -1,0 +1,82 @@
+/* Tambahan untuk Dashboard Admin. Dipakai bersama owner-dashboard.css (sidebar, header, kartu, tabel, modal). */
+.bt{display:flex;flex-direction:column;line-height:1.15}
+.bt small{font-size:.7rem;letter-spacing:.12em;font-weight:700;color:var(--gd)}
+.head-t p{font-size:.85rem}
+.head-t h1{font-size:1.25rem}
+.search{position:relative;width:260px}
+.search-m{display:none}
+.search .i{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--mu);pointer-events:none}
+.search input{width:100%;padding:9px 12px 9px 38px;border:1px solid var(--bd);border-radius:12px;background:var(--bg);font:inherit;font-size:.92rem}
+.search input:focus{outline:none;border-color:var(--g);background:#fff;box-shadow:0 0 0 4px rgba(22,163,74,.15)}
+.view{display:none}.view.on{display:block}
+.ph{margin-bottom:18px}
+.ph h2{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:1.3rem}
+.ph p{margin:2px 0 0;color:var(--mu)}
+.chip{display:inline-block;padding:2px 10px;border-radius:999px;background:var(--warnbg);color:#B45309;font-size:.8rem;font-weight:600}
+.wrap{overflow-x:auto}
+.tbl tbody tr{cursor:default}
+.empty{text-align:center;color:var(--mu)}
+.badge.b{background:#DBEAFE;color:#1D4ED8}
+.btn{border:0;border-radius:10px;padding:10px 16px;background:var(--g);color:#fff;font-weight:700;transition:background .15s,transform .05s}
+.btn:hover{background:var(--gd)}.btn:active{transform:translateY(1px)}
+.btn.line{background:#fff;color:var(--gd);border:1.5px solid var(--g)}.btn.line:hover{background:var(--gl)}
+.trend{margin:2px 0 0;font-size:.82rem;font-weight:600;color:var(--gd)}
+.row-even{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.row-13{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:16px;margin-bottom:16px}
+.mb{margin-bottom:16px}
+.sub{color:var(--mu);font-size:.88rem;margin:8px 0 0}
+
+.filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.filters input,.filters select,.fld input,.fld select,.fld textarea{padding:10px 12px;border:1.5px solid #CBD5E1;border-radius:10px;background:#fff;font:inherit;min-width:0}
+.filters input{flex:1;min-width:180px}
+.filters input:focus,.filters select:focus,.fld input:focus,.fld select:focus{outline:none;border-color:var(--g);box-shadow:0 0 0 4px rgba(22,163,74,.15)}
+.fld{display:grid;gap:6px;margin-bottom:14px}.fld label{font-weight:600;font-size:.9rem}.fld input,.fld select{width:100%}
+.fld input[readonly]{background:var(--bg);color:var(--mu)}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
+.chk{display:flex;align-items:center;gap:10px;padding:8px 0;font-size:.95rem}.chk input{width:18px;height:18px;accent-color:var(--g)}
+.lock{padding:16px;border-radius:14px;background:var(--warnbg);color:#92400E;font-size:.92rem}
+.tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--bd);overflow-x:auto}
+.tabs button{border:0;background:none;padding:10px 14px;font-weight:600;color:var(--mu);border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button:hover{color:var(--tx)}.tabs button.on{color:var(--gd);border-color:var(--g)}
+
+.lc{position:relative}.lc svg{display:block}
+.lc .tip{position:absolute;transform:translate(-50%,-130%);opacity:0;transition:opacity .12s}.lc .tip.on{opacity:1}
+.lc .hit{outline:none}
+.lgd{display:flex;gap:16px;margin-bottom:10px;font-size:.85rem;color:var(--mu)}
+.lgd span:before{content:"";display:inline-block;width:10px;height:10px;margin-right:6px;border-radius:3px;background:var(--c)}
+.cols .tip{white-space:normal;width:max-content;max-width:190px;text-align:left;line-height:1.5}
+.col:first-child .tip{left:0;transform:none}.col:last-child .tip{left:auto;right:0;transform:none}
+.stk{width:68%;max-width:44px;display:flex;flex-direction:column-reverse;border-radius:8px 8px 0 0;overflow:hidden}
+.stk b{display:block;width:100%}.stk .p{background:#86EFAC}.stk .m{background:#15803D}
+.col:hover .stk,.col:focus-visible .stk{filter:brightness(.93)}
+
+.dist{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.donut{position:relative;width:150px;height:150px;flex:none;border-radius:50%}
+.donut:after{content:"";position:absolute;inset:26px;border-radius:50%;background:#fff}
+.donut div{position:absolute;inset:0;z-index:1;display:grid;place-content:center;text-align:center;line-height:1.2}
+.donut b{font-size:1.3rem}.donut small{color:var(--mu);font-size:.8rem}
+.lg{flex:1;min-width:190px}
+.lg div{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--bd);font-size:.9rem}
+.lg div:last-child{border:0}.lg .sw{width:12px;height:12px;border-radius:4px;flex:none}.lg span.g{flex:1}.lg small{display:block;color:var(--mu)}
+
+.tk{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.tk div{padding:12px;border-radius:14px;background:var(--bg);text-align:center}
+.tk b{display:block;font-size:1.4rem}.tk span{font-size:.82rem;color:var(--mu)}
+
+.plans{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.pc{position:relative;display:flex;flex-direction:column;gap:12px}.pc.hero{border:2px solid var(--g)}
+.pc .price{font-size:1.7rem;font-weight:800;letter-spacing:-.02em}.pc .price small{font-size:.9rem;font-weight:500;color:var(--mu)}
+.pc ul{flex:1;margin:0;padding-left:18px;color:#334155;font-size:.92rem}.pc li{margin-bottom:4px}
+.pc .acts{display:flex;gap:8px;flex-wrap:wrap}.pc .tag{position:absolute;top:-11px;right:16px}
+.msg{padding:10px 12px;margin:8px 0;border-radius:12px;background:var(--bg);font-size:.9rem}
+.msg.me{background:var(--gl)}.msg small{display:block;color:var(--mu)}
+.modal-f{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+
+.toast{position:fixed;left:50%;bottom:24px;z-index:60;max-width:90vw;padding:10px 18px;border-radius:12px;background:var(--tx);color:#fff;font-size:.9rem;opacity:0;pointer-events:none;transform:translate(-50%,16px);transition:.2s}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media(max-width:1100px){.row-even,.row-13,.plans{grid-template-columns:1fr}}
+@media(max-width:720px){
+  .head .search{display:none}.search-m{display:block;width:auto;margin-bottom:16px}
+  .fg{grid-template-columns:1fr}.tk{grid-template-columns:repeat(2,1fr)}
+}

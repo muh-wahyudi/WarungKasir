@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 440" fill="none" role="img" aria-label="Dasbor penjualan dan struk kasir digital">
+  <circle cx="260" cy="225" r="190" fill="#166534" opacity=".55"/>
+  <rect x="24" y="48" width="400" height="270" rx="22" fill="#fff"/>
+  <rect x="50" y="76" width="90" height="12" rx="6" fill="#bbf7d0"/>
+  <rect x="50" y="98" width="150" height="22" rx="8" fill="#14532d"/>
+  <rect x="338" y="76" width="64" height="26" rx="13" fill="#dcfce7"/>
+  <text x="370" y="94" text-anchor="middle" font-family="Arial,sans-serif" font-size="13" font-weight="700" fill="#15803d">+12%</text>
+  <g fill="#bbf7d0">
+    <rect x="54" y="250" width="34" height="40" rx="8"/><rect x="106" y="226" width="34" height="64" rx="8"/>
+    <rect x="158" y="238" width="34" height="52" rx="8"/><rect x="210" y="202" width="34" height="88" rx="8"/>
+    <rect x="262" y="218" width="34" height="72" rx="8"/><rect x="314" y="178" width="34" height="112" rx="8"/>
+  </g>
+  <rect x="366" y="154" width="34" height="136" rx="8" fill="#16a34a"/>
+  <polyline points="71,238 123,214 175,226 227,190 279,206 331,166 383,142" stroke="#15803d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(330 150) rotate(4)">
+    <path d="M0 0H150V236l-12.5-9 -12.5 9 -12.5-9 -12.5 9 -12.5-9 -12.5 9 -12.5-9 -12.5 9 -12.5-9 -12.5 9 -12.5-9 -12.5 9Z" fill="#f0fdf4"/>
+    <circle cx="32" cy="32" r="14" fill="#16a34a"/>
+    <rect x="54" y="24" width="60" height="8" rx="4" fill="#14532d"/><rect x="54" y="38" width="40" height="6" rx="3" fill="#bbf7d0"/>
+    <g fill="#bbf7d0">
+      <rect x="20" y="78" width="70" height="8" rx="4"/><rect x="104" y="78" width="26" height="8" rx="4"/>
+      <rect x="20" y="102" width="56" height="8" rx="4"/><rect x="104" y="102" width="26" height="8" rx="4"/>
+      <rect x="20" y="126" width="80" height="8" rx="4"/><rect x="104" y="126" width="26" height="8" rx="4"/>
+    </g>
+    <line x1="20" y1="158" x2="130" y2="158" stroke="#86efac" stroke-width="2" stroke-dasharray="5 5"/>
+    <rect x="20" y="176" width="40" height="10" rx="5" fill="#14532d"/><rect x="78" y="172" width="52" height="18" rx="8" fill="#16a34a"/>
+  </g>
+  <circle cx="92" cy="372" r="40" fill="#16a34a"/><circle cx="92" cy="372" r="30" stroke="#bbf7d0" stroke-width="3"/>
+  <text x="92" y="379" text-anchor="middle" font-family="Arial,sans-serif" font-size="20" font-weight="700" fill="#fff">Rp</text>
+  <circle cx="160" cy="400" r="22" fill="#86efac"/>
+</svg>
