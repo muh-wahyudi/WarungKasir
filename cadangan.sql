@@ -29,7 +29,7 @@ CREATE TABLE `login_attempts` (
   `attempted_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_attempts_ip_time` (`ip`,`attempted_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -96,7 +96,7 @@ CREATE TABLE `products` (
   UNIQUE KEY `uq_products_owner_sku` (`owner_id`,`sku`),
   KEY `idx_products_owner` (`owner_id`,`is_active`),
   CONSTRAINT `fk_products_owner` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -105,6 +105,7 @@ CREATE TABLE `products` (
 
 LOCK TABLES `products` WRITE;
 /*!40000 ALTER TABLE `products` DISABLE KEYS */;
+INSERT INTO `products` VALUES (7,2,'indomie','76677662','produk/2/c82a95a60452256794e73949059e5036.jpg',3000,95,5,1,'2026-11-02 05:40:24','2026-11-03 11:24:47'),(8,2,'Mie Sedap selection','8998866202343','produk/2/942e6241a364c8e9245fb2980c10a88f.jpg',3500,29,5,1,'2026-11-03 14:03:13','2026-11-04 01:08:47');
 /*!40000 ALTER TABLE `products` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -127,7 +128,7 @@ CREATE TABLE `scan_requests` (
   KEY `idx_scan_user_status` (`user_id`,`status`),
   KEY `idx_scan_expires` (`expires_at`),
   CONSTRAINT `fk_scan_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=42 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -136,7 +137,7 @@ CREATE TABLE `scan_requests` (
 
 LOCK TABLES `scan_requests` WRITE;
 /*!40000 ALTER TABLE `scan_requests` DISABLE KEYS */;
-INSERT INTO `scan_requests` VALUES (1,2,'expired',NULL,'2026-11-01 14:18:37','2026-11-01 21:20:37','2026-11-01 14:20:39'),(2,2,'canceled',NULL,'2026-11-01 14:21:07','2026-11-01 21:23:07','2026-11-01 14:21:22'),(3,2,'completed','6944284608351','2026-11-01 14:21:38','2026-11-01 21:23:38','2026-11-01 14:21:54');
+INSERT INTO `scan_requests` VALUES (27,2,'canceled',NULL,'2026-11-03 14:40:32','2026-11-03 21:45:32','2026-11-03 14:40:53'),(28,2,'expired',NULL,'2026-11-03 14:41:03','2026-11-03 21:46:03','2026-11-03 14:46:52'),(29,2,'canceled','8998866202343,8998866202343,557146202343,8998866202343,8998866202343,8998866202343,8998866202343','2026-11-03 14:49:48','2026-11-03 21:54:48','2026-11-03 14:53:02'),(32,2,'canceled','8998866202343,8998866202343','2026-11-03 14:54:01','2026-11-03 21:59:01','2026-11-03 14:54:59'),(33,2,'canceled',NULL,'2026-11-03 14:54:29','2026-11-03 21:59:29','2026-11-03 14:55:24'),(34,2,'canceled','8998866202343,8998866202343,8998866202343,8998866202343','2026-11-03 14:58:27','2026-11-03 22:03:27','2026-11-03 14:59:12'),(36,2,'canceled',NULL,'2026-11-03 15:01:58','2026-11-03 22:06:58','2026-11-03 15:02:25'),(38,2,'canceled',NULL,'2026-11-03 15:05:04','2026-11-03 22:10:04','2026-11-03 15:05:37'),(39,2,'expired',NULL,'2026-11-03 15:05:40','2026-11-03 22:10:40','2026-11-04 00:56:28'),(40,2,'canceled',NULL,'2026-11-04 01:02:53','2026-11-04 08:07:53','2026-11-04 01:03:11'),(41,2,'canceled',NULL,'2026-11-04 01:08:08','2026-11-04 08:13:08','2026-11-04 01:08:47');
 /*!40000 ALTER TABLE `scan_requests` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -193,7 +194,7 @@ CREATE TABLE `transaction_items` (
   KEY `idx_items_product` (`product_id`),
   CONSTRAINT `fk_items_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_items_trx` FOREIGN KEY (`transaction_id`) REFERENCES `transactions` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=34 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -202,6 +203,7 @@ CREATE TABLE `transaction_items` (
 
 LOCK TABLES `transaction_items` WRITE;
 /*!40000 ALTER TABLE `transaction_items` DISABLE KEYS */;
+INSERT INTO `transaction_items` VALUES (5,5,7,'indomie',1,3000),(6,6,7,'indomie',1,3000),(7,7,7,'indomie',1,3000),(8,8,7,'indomie',1,3000),(9,9,7,'indomie',1,3000),(10,10,7,'indomie',2,3000),(11,11,7,'indomie',3,3000),(12,12,8,'Mie Sedap selection',5,3500),(13,13,8,'Mie Sedap selection',11,3500),(14,14,8,'Mie Sedap selection',11,3500),(15,15,8,'Mie Sedap selection',2,3500),(16,16,8,'Mie Sedap selection',3,3500),(17,17,8,'Mie Sedap selection',1,3500),(18,18,8,'Mie Sedap selection',2,3500),(19,19,8,'Mie Sedap selection',2,3500),(20,20,8,'Mie Sedap selection',2,3500),(21,21,8,'Mie Sedap selection',3,3500),(22,22,8,'Mie Sedap selection',1,3500),(23,23,8,'Mie Sedap selection',1,3500),(24,24,8,'Mie Sedap selection',3,3500),(25,25,8,'Mie Sedap selection',2,3500),(26,26,8,'Mie Sedap selection',2,3500),(27,27,8,'Mie Sedap selection',3,3500),(28,28,8,'Mie Sedap selection',2,3500),(29,29,8,'Mie Sedap selection',2,3500),(30,30,8,'Mie Sedap selection',2,3500),(31,31,8,'Mie Sedap selection',3,3500),(32,32,8,'Mie Sedap selection',1,3500),(33,33,8,'Mie Sedap selection',7,3500);
 /*!40000 ALTER TABLE `transaction_items` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -220,13 +222,14 @@ CREATE TABLE `transactions` (
   `total` int unsigned NOT NULL,
   `payment_method` enum('Tunai','QRIS','Transfer') NOT NULL,
   `status` enum('Selesai','Menunggu','Dibatalkan') NOT NULL DEFAULT 'Selesai',
+  `midtrans_order_id` varchar(100) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_trx_code` (`owner_id`,`code`),
   KEY `idx_trx_owner_date` (`owner_id`,`created_at`),
   KEY `idx_trx_owner_status` (`owner_id`,`status`),
   CONSTRAINT `fk_trx_owner` FOREIGN KEY (`owner_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=34 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -235,7 +238,7 @@ CREATE TABLE `transactions` (
 
 LOCK TABLES `transactions` WRITE;
 /*!40000 ALTER TABLE `transactions` DISABLE KEYS */;
-INSERT INTO `transactions` VALUES (1,2,'TRX-00001','Pelanggan Umum',50000,'Tunai','Selesai','2026-11-01 08:47:33'),(2,2,'TRX-00002','Pelanggan Umum',50000,'QRIS','Menunggu','2026-11-01 08:47:45'),(3,2,'TRX-00003','Pelanggan Umum',50000,'Tunai','Selesai','2026-11-01 12:17:57'),(4,2,'TRX-00004','Pelanggan Umum',50000,'Tunai','Selesai','2026-11-01 12:18:28');
+INSERT INTO `transactions` VALUES (1,2,'TRX-00001','Pelanggan Umum',50000,'Tunai','Selesai',NULL,'2026-11-01 08:47:33'),(2,2,'TRX-00002','Pelanggan Umum',50000,'QRIS','Menunggu',NULL,'2026-11-01 08:47:45'),(3,2,'TRX-00003','Pelanggan Umum',50000,'Tunai','Selesai',NULL,'2026-11-01 12:17:57'),(4,2,'TRX-00004','Pelanggan Umum',50000,'Tunai','Selesai',NULL,'2026-11-01 12:18:28'),(5,2,'TRX-00005','Pelanggan Umum',3000,'Tunai','Selesai',NULL,'2026-11-02 13:32:54'),(6,2,'TRX-00006','Pelanggan Umum',3000,'Tunai','Selesai',NULL,'2026-11-02 14:18:59'),(7,2,'TRX-00007','Pelanggan Umum',3000,'QRIS','Menunggu','WK-2-1793672160','2026-11-03 09:16:00'),(8,2,'TRX-00008','Pelanggan Umum',3000,'QRIS','Selesai','WK-2-1793672217','2026-11-03 09:16:57'),(9,2,'TRX-00009','Pelanggan Umum',3000,'Transfer','Menunggu',NULL,'2026-11-03 09:20:58'),(10,2,'TRX-00010','Pelanggan Umum',6000,'Tunai','Selesai',NULL,'2026-11-03 18:16:50'),(11,2,'TRX-00011','Pelanggan Umum',9000,'QRIS','Selesai','WK-2-1793705087','2026-11-03 18:24:47'),(12,2,'TRX-00012','Pelanggan Umum',17500,'Tunai','Selesai',NULL,'2026-11-03 21:04:37'),(13,2,'TRX-00013','Pelanggan Umum',38500,'Tunai','Selesai',NULL,'2026-11-03 21:07:26'),(14,2,'TRX-00014','Pelanggan Umum',38500,'Tunai','Selesai',NULL,'2026-11-03 21:09:41'),(15,2,'TRX-00015','Pelanggan Umum',7000,'Tunai','Selesai',NULL,'2026-11-03 21:11:57'),(16,2,'TRX-00016','Pelanggan Umum',10500,'Tunai','Selesai',NULL,'2026-11-03 21:13:39'),(17,2,'TRX-00017','Pelanggan Umum',3500,'Tunai','Selesai',NULL,'2026-11-03 21:15:30'),(18,2,'TRX-00018','Pelanggan Umum',7000,'Tunai','Selesai',NULL,'2026-11-03 21:24:42'),(19,2,'TRX-00019','Pelanggan Umum',7000,'Tunai','Selesai',NULL,'2026-11-03 21:29:08'),(20,2,'TRX-00020','Pelanggan Umum',7000,'Tunai','Selesai',NULL,'2026-11-03 21:29:59'),(21,2,'TRX-00021','Pelanggan Umum',10500,'Tunai','Selesai',NULL,'2026-11-03 21:33:05'),(22,2,'TRX-00022','Pelanggan Umum',3500,'Tunai','Selesai',NULL,'2026-11-03 21:34:13'),(23,2,'TRX-00023','Pelanggan Umum',3500,'Tunai','Selesai',NULL,'2026-11-03 21:36:37'),(24,2,'TRX-00024','Pelanggan Umum',10500,'Tunai','Selesai',NULL,'2026-11-03 21:38:30'),(25,2,'TRX-00025','Pelanggan Umum',7000,'Tunai','Selesai',NULL,'2026-11-03 21:40:53'),(26,2,'TRX-00026','Pelanggan Umum',7000,'Tunai','Selesai',NULL,'2026-11-03 21:50:10'),(27,2,'TRX-00027','Pelanggan Umum',10500,'Tunai','Selesai',NULL,'2026-11-03 21:54:21'),(28,2,'TRX-00028','Pelanggan Umum',7000,'Tunai','Selesai',NULL,'2026-11-03 21:55:24'),(29,2,'TRX-00029','Pelanggan Umum',7000,'Tunai','Selesai',NULL,'2026-11-03 21:58:46'),(30,2,'TRX-00030','Pelanggan Umum',7000,'Tunai','Selesai',NULL,'2026-11-03 22:02:25'),(31,2,'TRX-00031','Pelanggan Umum',10500,'Tunai','Selesai',NULL,'2026-11-03 22:05:37'),(32,2,'TRX-00032','Pelanggan Umum',3500,'Tunai','Selesai',NULL,'2026-11-04 08:03:11'),(33,2,'TRX-00033','Pelanggan Umum',24500,'QRIS','Selesai','WK-2-1793754527','2026-11-04 08:08:47');
 /*!40000 ALTER TABLE `transactions` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -311,4 +314,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-11-01 14:57:21
+-- Dump completed on 2026-11-04  1:13:25

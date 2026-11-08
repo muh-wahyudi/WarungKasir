@@ -55,6 +55,7 @@ $wk = json_encode(['master' => $isMaster, 'name' => $u['full_name'], 'email' => 
       <a href="#users" data-go="users"><svg class="i" aria-hidden="true"><use href="#i-users"/></svg>Pengguna</a>
       <a href="#subs" data-go="subs"><svg class="i" aria-hidden="true"><use href="#i-repeat"/></svg>Langganan</a>
       <a href="#pay" data-go="pay"><svg class="i" aria-hidden="true"><use href="#i-card"/></svg>Pembayaran</a>
+      <a href="admin-wallet.php"><svg class="i" aria-hidden="true"><use href="#i-card"/></svg>Wallet &amp; Withdrawal</a>
       <a href="#plans" data-go="plans"><svg class="i" aria-hidden="true"><use href="#i-box"/></svg>Paket</a>
       <a href="#support" data-go="support"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg>Dukungan Pelanggan</a>
       <a href="#settings" data-go="settings"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg>Pengaturan Platform</a>

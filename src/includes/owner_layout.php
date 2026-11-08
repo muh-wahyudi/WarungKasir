@@ -2,6 +2,11 @@
 require_once __DIR__ . '/owner.php';
 
 function e($v): string { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); }
+// URL aset dengan nomor versi otomatis (waktu ubah file), agar browser tidak memakai JS lama dari cache.
+function asset_url(string $path): string {
+    $f = __DIR__ . '/../' . $path;
+    return e($path) . '?v=' . (is_file($f) ? filemtime($f) : '0');
+}
 function owner_initials(string $name): string {
     $w = preg_split('/\s+/', trim($name)) ?: [''];
     return mb_strtoupper(mb_substr($w[0], 0, 1) . (isset($w[1]) ? mb_substr($w[1], 0, 1) : ''));
@@ -13,12 +18,10 @@ function owner_layout_start(array $u, string $active, string $title, string $sub
     $items = [
         ['dashboard', 'Dashboard', 'home', 'owner-dashboard.php'],
         ['kasir', 'Kasir', 'cart', 'kasir.php'],
-        ['produk', 'Produk', 'box', 'produk.php'],
-        ['stok', 'Stok Barang', 'layers', null],
-        ['transaksi', 'Transaksi', 'receipt', null],
-        ['laporan', 'Laporan Penjualan', 'chart', null],
-        ['paket', 'Paket Langganan', 'star', null],
-        ['pengaturan', 'Pengaturan', 'sliders', null],
+        ['produk', 'Produk & Stok', 'box', 'produk.php'],
+        ['transaksi', 'Transaksi & Laporan', 'receipt', 'transaksi.php'],
+        ['saldo', 'Saldo & Withdrawal', 'wallet', 'saldo.php'],
+        ['pengaturan', 'Pengaturan', 'sliders', 'pengaturan.php'],
     ];
 ?>
 <!DOCTYPE html>
@@ -50,6 +53,7 @@ function owner_layout_start(array $u, string $active, string $title, string $sub
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h12v4"/><path d="M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-3"/><path d="M21 9h-4a2 2 0 0 0 0 4h4z"/></symbol>
   <symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
 </defs></svg>
 
@@ -58,7 +62,7 @@ function owner_layout_start(array $u, string $active, string $title, string $sub
 <?php if ($active === 'dashboard'): ?>
   <nav class="tabbar" aria-label="Navigasi cepat">
 <?php foreach ($items as [$key, $label, $icon, $href]): if (!in_array($key, ['dashboard', 'kasir', 'produk'], true)) continue; ?>
-    <a <?= $key === $active ? 'class="on" aria-current="page" ' : '' ?>href="<?= e($href) ?>"><svg class="i" aria-hidden="true"><use href="#i-<?= $icon ?>"/></svg><span><?= e($label) ?></span></a>
+    <a <?= $key === $active ? 'class="on" aria-current="page" ' : '' ?>href="<?= e($href) ?>"><svg class="i" aria-hidden="true"><use href="#i-<?= $icon ?>"/></svg><span><?= e($key === 'produk' ? 'Produk' : $label) ?></span></a>
 <?php endforeach; ?>
     <button type="button" id="tab-more" aria-label="Buka menu lengkap"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg><span>Menu</span></button>
   </nav>
@@ -88,8 +92,8 @@ function owner_layout_start(array $u, string $active, string $title, string $sub
         <div class="dd">
           <button class="who" id="who" type="button" aria-haspopup="menu" aria-expanded="false"><span class="av"><?= $ini ?></span><span class="who-n"><?= e(owner_first_name($u)) ?></span><svg class="i"><use href="#i-chev"/></svg></button>
           <div class="menu-dd" id="dd" role="menu" hidden>
-            <a href="#" role="menuitem" data-soon="Profil Saya">Profil Saya</a>
-            <a href="#" role="menuitem" data-soon="Pengaturan Usaha">Pengaturan Usaha</a>
+            <a href="pengaturan.php#profil" role="menuitem">Profil Saya</a>
+            <a href="pengaturan.php#usaha" role="menuitem">Pengaturan Usaha</a>
             <a href="login.html" role="menuitem" id="logout">Keluar</a>
           </div>
         </div>
@@ -113,10 +117,10 @@ function owner_layout_end(array $scripts = []): void {
   </div>
 </dialog>
 <div class="toast" id="toast" role="status"></div>
-<script src="js/owner-common.js"></script>
+<script src="<?= asset_url('js/owner-common.js') ?>"></script>
 <script>var tm=document.getElementById("tab-more");if(tm)tm.addEventListener("click",function(){var b=document.getElementById("open-side");if(b)b.click();});</script>
 <?php foreach ($scripts as $s): ?>
-<script src="<?= e($s) ?>"></script>
+<script src="<?= asset_url($s) ?>"></script>
 <?php endforeach; ?>
 </body>
 </html>

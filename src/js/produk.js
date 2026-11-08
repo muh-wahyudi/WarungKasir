@@ -113,7 +113,7 @@ async function uploadPhoto(id, blob) {
   return { ok: r.ok, message: j.message || 'Foto gagal diunggah.' };
 }
 
-dlg.addEventListener('close', () => { if (photo.url) URL.revokeObjectURL(photo.url); photo = emptyPhoto(); removeScanOverlay(); });
+dlg.addEventListener('close', () => { if (photo.url) URL.revokeObjectURL(photo.url); photo = emptyPhoto(); cancelActiveScan(); removeScanOverlay(); });
 document.addEventListener('change', async (ev) => {
   if (ev.target.id !== 'pf-file') return;
   const f = ev.target.files[0];
@@ -130,6 +130,7 @@ document.addEventListener('change', async (ev) => {
 
 let scanPollInterval = null;
 let scanOverlay = null;
+let activeScanId = null;
 
 function removeScanOverlay() {
   if (scanPollInterval) clearInterval(scanPollInterval);
@@ -140,22 +141,51 @@ function removeScanOverlay() {
   }
 }
 
-async function pollScanStatus(scanId) {
-  if (!scanId) return;
+function cancelActiveScan() {
+  const id = activeScanId;
+  activeScanId = null;
+  if (id) postJSON('api/scan-request.php', { action: 'cancel', id }).catch(() => { });
+}
+
+async function fetchAndRestock(sku) {
   try {
-    const r = await fetch('api/scan-request.php?id=' + scanId, { credentials: 'same-origin', cache: 'no-store' });
+    const r = await fetch('api/produk-data.php?action=find_sku&sku=' + encodeURIComponent(sku), {
+      credentials: 'same-origin', cache: 'no-store'
+    });
+    if (r.ok) {
+      const product = await r.json();
+      productForm(product, true);
+    } else {
+      productForm();
+      setTimeout(() => {
+        if ($('#pf-sku')) {
+          $('#pf-sku').value = sku;
+          $('#pf-sku').dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }, 100);
+    }
+  } catch (e) {
+    toast('Gagal memeriksa barcode.');
+  }
+}
+
+async function pollScanStatus(scanId) {
+  if (!scanId || scanId !== activeScanId) return;
+  try {
+    const r = await fetch('api/scan-request.php?check_barcodes=1&id=' + scanId, { credentials: 'same-origin', cache: 'no-store' });
     if (!r.ok) return;
     const j = await r.json();
+    if (scanId !== activeScanId) return;
 
-    if (j.status === 'completed') {
+    if (Array.isArray(j.barcodes) && j.barcodes.length) {
+      const code = j.barcodes[0];
+      activeScanId = null;
       removeScanOverlay();
-      const inp = $('#pf-sku');
-      if (inp) {
-        inp.value = j.barcode;
-        inp.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      toast('Barcode berhasil dipindai: ' + j.barcode);
-    } else if (['rejected', 'expired', 'canceled'].includes(j.status)) {
+      toast('Barcode terdeteksi. Memeriksa data...');
+      fetchAndRestock(code);
+      postJSON('api/scan-request.php', { action: 'complete', id: scanId }).catch(() => { });
+    } else if (['rejected', 'expired', 'canceled', 'completed'].includes(j.status)) {
+      activeScanId = null;
       removeScanOverlay();
       toast('Pemindaian dibatalkan atau gagal.');
     }
@@ -163,8 +193,9 @@ async function pollScanStatus(scanId) {
 }
 
 async function startScan() {
+  if (activeScanId) { toast('Sesi scan sudah berjalan.'); return; }
   try {
-    const { ok, body } = await postJSON('api/scan-request.php', { action: 'create' });
+    const { ok, body } = await postJSON('api/scan-request.php', { action: 'create', mode: 'produk' });
 
     if (!ok) {
       toast(body.message);
@@ -172,6 +203,7 @@ async function startScan() {
     }
 
     const scanId = body.id;
+    activeScanId = scanId;
 
     scanOverlay = document.createElement('div');
     scanOverlay.id = 'scan-overlay';
@@ -187,58 +219,75 @@ async function startScan() {
     `;
     document.body.appendChild(scanOverlay);
 
-    scanOverlay.querySelector('#btn-cancel-scan-overlay').addEventListener('click', async () => {
-      try { await postJSON('api/scan-request.php', { action: 'cancel', id: scanId }); } catch (e) { }
+    scanOverlay.querySelector('#btn-cancel-scan-overlay').addEventListener('click', () => {
+      cancelActiveScan();
       removeScanOverlay();
       toast('Pemindaian dibatalkan.');
     });
 
     scanPollInterval = setInterval(() => pollScanStatus(scanId), 2000);
   } catch (e) {
+    activeScanId = null;
     toast('Gagal meminta scan. Periksa koneksi.');
   }
 }
 
-function productForm(x) {
+function productForm(x = null, restock = false) {
+  const isEdit = x && !restock;
   const v = (k, d = '') => esc(x ? (x[k] ?? d) : d);
-  photo = emptyPhoto(x ? x.image : null);
-  modal(x ? 'Ubah Produk' : 'Tambah Produk', `<form id="pf" novalidate data-id="${x ? x.id : ''}">
+  
+  // Perbaikan: Selalu simpan ID produk, baik untuk edit maupun restock
+  const productId = x ? x.id : '';
+
+  photo = emptyPhoto(x && !restock ? x.image : null);
+
+  const title = isEdit ? 'Ubah Produk' : (restock ? 'Tambah Stok Produk' : 'Tambah Produk');
+  const btnText = isEdit ? 'Simpan Perubahan' : (restock ? 'Tambah Stok' : 'Tambah Produk');
+
+  // Perbaikan: data-id diisi productId
+  modal(title, `<form id="pf" novalidate data-id="${productId}" data-restock="${restock ? '1' : '0'}">
     <div class="fld"><label>Foto produk <span class="opt">(opsional)</span></label>
       <div class="photo-row"><div class="pv" id="pv"></div>
-        <div class="photo-btns"><button class="btn line" type="button" data-act="pick">Pilih Foto</button><button class="link danger" type="button" data-act="unpick" hidden>Hapus Foto</button><small class="hint">JPG, PNG, atau WebP. Diperkecil otomatis.</small></div>
+        <div class="photo-btns"><button class="btn line" type="button" data-act="pick">Pilih Foto</button><button class="link danger" type="button" data-act="unpick" hidden>Hapus Foto</button><small class="hint">JPG, PNG, atau WebP.</small></div>
         <input type="file" id="pf-file" accept="image/jpeg,image/png,image/webp" hidden></div>
       <small class="ferr" id="e-foto" role="alert"></small></div>
-    ${fld('name', 'Nama produk <span class="req">*</span>', `<input id="pf-name" name="name" maxlength="120" autocomplete="off" required value="${v('name')}">`)}
-    
+
+    ${fld('name', 'Nama produk <span class="req">*</span>', `<input id="pf-name" name="name" maxlength="120" autocomplete="off" required value="${v('name')}" ${restock ? 'readonly' : ''}>`)}
+
     <div class="fld">
       <label for="pf-sku">Kode produk atau barcode <span class="req">*</span></label>
       <div style="display:flex;gap:8px;">
-        <input id="pf-sku" name="sku" maxlength="40" autocomplete="off" required value="${v('sku')}" style="flex:1;">
+        <input id="pf-sku" name="sku" maxlength="40" autocomplete="off" required value="${v('sku')}" style="flex:1;" ${restock ? 'readonly' : ''}>
         <button class="btn line" type="button" data-act="scan" title="Scan dengan kamera HP" style="padding:0 12px;"><svg class="i" aria-hidden="true"><use href="#i-camera"/></svg></button>
       </div>
       <small class="ferr" id="e-sku" role="alert"></small>
     </div>
 
     <div class="fg">
-      ${fld('price', 'Harga jual (Rp) <span class="req">*</span>', `<input id="pf-price" name="price" type="text" inputmode="numeric" required value="${v('price') ? num(v('price')) : ''}">`)}
-      ${fld('stock', 'Stok <span class="req">*</span>', `<input id="pf-stock" name="stock" type="number" inputmode="numeric" min="0" step="1" required value="${x ? v('stock') : '0'}">`)}
+      ${fld('price', 'Harga jual (Rp) <span class="req">*</span>', `<input id="pf-price" name="price" type="text" inputmode="numeric" required value="${v('price') ? num(v('price')) : ''}" ${restock ? 'readonly' : ''}>`)}
+
+      ${fld('stock', restock ? 'Tambah Stok Baru <span class="req">*</span>' : 'Stok <span class="req">*</span>', `<input id="pf-stock" name="stock" type="number" inputmode="numeric" min="0" step="1" required value="${isEdit ? v('stock') : ''}" placeholder="${restock ? 'Masukkan jumlah tambahan' : '0'}">`)}
     </div>
-    ${fld('min_stock', 'Batas stok menipis <span class="req">*</span>', `<input id="pf-min_stock" name="min_stock" type="number" inputmode="numeric" min="0" step="1" required value="${x ? v('min_stock') : '5'}">`, 'Produk ditandai "Menipis" saat stok sama dengan atau di bawah angka ini.')}
+
+    ${fld('min_stock', 'Batas stok menipis <span class="req">*</span>', `<input id="pf-min_stock" name="min_stock" type="number" inputmode="numeric" min="0" step="1" required value="${x ? v('min_stock') : '5'}" ${restock ? 'readonly' : ''}>`, 'Produk ditandai "Menipis" saat stok sama dengan atau di bawah angka ini.')}
+
     <p class="ferr" id="e-form" role="alert"></p>
-    <div class="modal-f"><button class="btn line" type="button" data-act="close">Batal</button><button class="btn" type="submit">${x ? 'Simpan Perubahan' : 'Tambah Produk'}</button></div>
+    <div class="modal-f"><button class="btn line" type="button" data-act="close">Batal</button><button class="btn" type="submit">${btnText}</button></div>
   </form>`);
+
   renderPreview();
-  $('#pf-name').focus();
+
+  if (restock) $('#pf-stock').focus();
+  else $('#pf-name').focus();
 
   const priceInput = $('#pf-price');
-  priceInput.addEventListener('input', function(e) {
-    let value = this.value.replace(/\D/g, '');
-    if (value) {
-      this.value = Number(value).toLocaleString('id-ID');
-    } else {
-      this.value = '';
-    }
-  });
+  if (!restock) {
+    priceInput.addEventListener('input', function(e) {
+      let value = this.value.replace(/\D/g, '');
+      if (value) this.value = Number(value).toLocaleString('id-ID');
+      else this.value = '';
+    });
+  }
 }
 
 function showErrors(errs) {
@@ -252,16 +301,6 @@ function showErrors(errs) {
   const first = $('#pf [aria-invalid]'); if (first) first.focus();
 }
 
-function validate(d) {
-  const e = {}, isInt = (s, min) => /^\d+$/.test(s) && Number(s) >= min;
-  if (d.name.length < 2) e.name = 'Nama produk minimal 2 karakter.';
-  if (d.sku.length === 0) e.sku = 'Kode produk wajib diisi.';
-  if (!isInt(d.price, 1)) e.price = 'Isi harga dengan angka bulat, minimal Rp1.';
-  if (!isInt(d.stock, 0)) e.stock = 'Isi stok dengan angka bulat, 0 atau lebih.';
-  if (!isInt(d.min_stock, 0)) e.min_stock = 'Isi batas stok dengan angka bulat, 0 atau lebih.';
-  return e;
-}
-
 function limitModal(msg) {
   modal('Batas paket tercapai', `<p>${esc(msg)}</p><div class="modal-f"><button class="btn line" type="button" data-act="close">Tutup</button><button class="btn" type="button" data-soon="Paket Langganan">Lihat Paket</button></div>`);
 }
@@ -271,30 +310,68 @@ document.addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const btn = $('button[type=submit]', form);
   if (btn.disabled) return;
-  const f = form.elements, d = { name: f.name.value.trim(), sku: f.sku.value.trim(), price: f.price.value.replace(/\D/g, ''), stock: f.stock.value.trim(), min_stock: f.min_stock.value.trim() };
-  const errs = validate(d);
+
+  const isRestock = form.dataset.restock === '1';
+  const formId = form.getAttribute('data-id');
+  const id = formId && formId !== '' && formId !== 'undefined' ? Number(formId) : null;
+
+  const f = form.elements;
+
+  const d = {
+    name: f.name.value.trim(),
+    sku: f.sku.value.trim(),
+    price: f.price.value.replace(/\D/g, ''),
+    stock: f.stock.value.trim(),
+    min_stock: f.min_stock.value.trim()
+  };
+
+  // Validasi manual per mode
+  const errs = {};
+  if (!isRestock) {
+    if (d.name.length < 2) errs.name = 'Nama produk minimal 2 karakter.';
+    if (d.sku.length === 0) errs.sku = 'Kode produk wajib diisi.';
+    if (!/^\d+$/.test(d.price) || Number(d.price) < 1) errs.price = 'Isi harga dengan angka bulat, minimal Rp1.';
+    if (!/^\d+$/.test(d.min_stock) || Number(d.min_stock) < 0) errs.min_stock = 'Isi batas stok dengan angka bulat, 0 atau lebih.';
+  }
+  // Validasi stok untuk semua mode
+  if (!/^\d+$/.test(d.stock) || Number(d.stock) < 0) errs.stock = 'Isi stok dengan angka bulat, 0 atau lebih.';
+  if (isRestock && Number(d.stock) < 1) errs.stock = 'Jumlah tambahan stok minimal 1.';
+
   if (Object.keys(errs).length) { showErrors(errs); return; }
   showErrors({});
-  const id = form.dataset.id, label = btn.textContent;
+
+  const label = btn.textContent;
   btn.disabled = true; btn.textContent = 'Menyimpan…';
+
   try {
-    const { ok, status, body } = await postJSON('api/produk-data.php', { action: id ? 'update' : 'create', id: id ? Number(id) : undefined, name: d.name, sku: d.sku, price: Number(d.price), stock: Number(d.stock), min_stock: Number(d.min_stock) });
+    let payload = {};
+    if (isRestock) {
+      if (!id) { 
+        btn.disabled = false; btn.textContent = label;
+        $('#e-form').textContent = 'ID produk tidak ditemukan. Tutup modal lalu scan ulang.';
+        return; 
+      }
+      payload = { action: 'restock', id: id, stock: Number(d.stock) };
+    } else {
+      payload = { action: id ? 'update' : 'create', id: id ? id : undefined, name: d.name, sku: d.sku, price: Number(d.price), stock: Number(d.stock), min_stock: Number(d.min_stock) };
+    }
+
+    const { ok, status, body } = await postJSON('api/produk-data.php', payload);
+
     if (ok) {
-      const pid = id ? Number(id) : body.id;
+      const pid = id ? id : body.id;
       let warn = '';
-      if (photo.blob) {
+      if (!isRestock && photo.blob) {
         btn.textContent = 'Mengunggah foto…';
         const up = await uploadPhoto(pid, photo.blob);
         if (!up.ok) warn = up.message;
-      } else if (photo.remove && photo.existing) {
-        const rm = await postJSON('api/produk-data.php', { action: 'remove_image', id: pid });
-        if (!rm.ok) warn = rm.body.message || 'Foto gagal dihapus.';
       }
       closeModal();
       toast(warn ? `${body.message || 'Tersimpan.'} Foto belum tersimpan: ${warn}` : (body.message || 'Tersimpan.'));
       load();
       return;
     }
+
     if (status === 403 && body.code === 'limit') { limitModal(body.message); load(); return; }
     if (status === 404) { closeModal(); toast(body.message); load(); return; }
     if (body.errors) showErrors(body.errors); else $('#e-form').textContent = body.message || 'Gagal menyimpan. Coba lagi.';

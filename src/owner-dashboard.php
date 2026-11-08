@@ -51,7 +51,7 @@ owner_layout_start($u, 'dashboard', 'Dashboard', 'Selamat datang kembali, <b>' .
             <div class="use"><span>Penggunaan produk</span><span id="use"></span></div>
             <div class="meter g"><i id="use-bar"></i></div>
             <ul id="plan-feat"></ul>
-            <button class="link" type="button" data-soon="Paket Langganan">Lihat Paket</button>
+            <button class="link" type="button" data-go="pengaturan.php#paket">Lihat Paket</button>
             <div class="other" id="plan-other" hidden></div>
           </section>
         </div>

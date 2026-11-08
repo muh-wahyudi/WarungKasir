@@ -14,6 +14,16 @@ function niceStep(range) {
   return [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
 }
 
+/* ---------- Waktu sesuai lokasi pengguna ---------- */
+// Memakai zona waktu perangkat/browser pengguna, bukan zona waktu server.
+const ZONA_ID = { 'Asia/Jakarta': 'WIB', 'Asia/Pontianak': 'WIB', 'Asia/Makassar': 'WITA', 'Asia/Jayapura': 'WIT' };
+function clientTime(d = new Date()) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const jam = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '.');
+  const zona = ZONA_ID[tz] || (new Intl.DateTimeFormat('id-ID', { timeZoneName: 'short' }).formatToParts(d).find((x) => x.type === 'timeZoneName') || {}).value || '';
+  return `${jam} ${zona}`.trim();
+}
+
 /* ---------- Pengambilan data ---------- */
 function setLive(ok, time) {
   const el = $('#live');
@@ -34,7 +44,7 @@ async function load() {
     if (r.status === 403) { location.href = 'admin.php'; return; }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
-    if (p === period) { data = j; render(); setLive(true, j.server_time); }
+    if (p === period) { data = j; render(); setLive(true, clientTime()); }
   } catch (e) {
     setLive(false);
   } finally {
@@ -91,7 +101,7 @@ function render() {
 
   $('#rs').innerHTML = d.restock.length ? d.restock.map((r) => {
     const w = r.stock > 0 ? Math.max(6, Math.min(100, Math.round(r.stock / Math.max(r.min_stock * 2, 1) * 100))) : 0;
-    return `<li><div class="rs"><div class="rs-top"><b>${esc(r.name)}</b><span class="badge ${r.stock > 0 ? 'w' : 'e'}">${r.stock > 0 ? 'Stok Menipis' : 'Stok Habis'}</span></div><div class="meter ${r.stock > 0 ? '' : 'e'}"><i style="width:${w}%"></i></div><div class="rs-bot"><span>Sisa ${num(r.stock)}</span><button class="link" data-soon="Produk" type="button">Lihat Produk</button></div></div></li>`;
+    return `<li><div class="rs"><div class="rs-top"><b>${esc(r.name)}</b><span class="badge ${r.stock > 0 ? 'w' : 'e'}">${r.stock > 0 ? 'Stok Menipis' : 'Stok Habis'}</span></div><div class="meter ${r.stock > 0 ? '' : 'e'}"><i style="width:${w}%"></i></div><div class="rs-bot"><span>Sisa ${num(r.stock)}</span><button class="link" data-go="produk.php" type="button">Lihat Produk</button></div></div></li>`;
   }).join('') : '<li class="empty-li">Semua stok aman. Tidak ada produk yang perlu direstok.</li>';
 
   const pl = d.plan, used = pl.used_products, mx = pl.max_products, ratio = mx ? used / mx : 0;
@@ -129,7 +139,7 @@ document.addEventListener('keydown', (e) => {
   if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); txDetail(+r.dataset.i); }
 });
 $('#tx').addEventListener('click', (e) => { const r = e.target.closest('tr[data-i]'); if (r) txDetail(+r.dataset.i); });
-$('#all-tx').addEventListener('click', () => soon('Transaksi'));
+$('#all-tx').addEventListener('click', () => { location.href = 'transaksi.php#riwayat'; });
 
 /* ---------- Mulai & perbarui otomatis ---------- */
 $('#stats').innerHTML = '<div class="card stat sk"></div>'.repeat(4);

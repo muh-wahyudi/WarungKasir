@@ -1,7 +1,7 @@
 <?php
 require __DIR__ . '/includes/owner_layout.php';
 $u = owner_page_guard($pdo);
-owner_layout_start($u, 'produk', 'Produk', 'Kelola barang dagangan · ' . e($u['business_name']));
+owner_layout_start($u, 'produk', 'Produk & Stok', 'Kelola barang dagangan dan stok · ' . e($u['business_name']));
 ?>
       <div class="note-e" id="err" role="alert" hidden></div>
       <div class="stats" id="stats"></div>

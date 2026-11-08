@@ -255,8 +255,8 @@
     </div>
 
     <div class="stats-bar">
-      <div><b>1.250+</b><span>Warung Terdaftar</span></div>
-      <div><b>99.9%</b><span>Uptime Layanan</span></div>
+      <div><b id="stat-warung">–</b><span>Warung Terdaftar</span></div>
+      <div><b id="stat-transaksi">–</b><span>Transaksi Tercatat</span></div>
       <div><b>&lt; 1 menit</b><span>Setup Akun</span></div>
       <div><b>Gratis</b><span>Untuk Memulai</span></div>
     </div>
@@ -310,48 +310,7 @@
       <h2>Paket Harga Sederhana</h2>
       <p>Mulai gratis, upgrade kapan saja sesuai kebutuhan warung Anda.</p>
     </div>
-    <div class="pricing">
-      <div class="plan">
-        <div class="plan-name">Free</div>
-        <div class="plan-price">Rp0<small></small></div>
-        <div class="plan-desc">Cocok untuk memulai</div>
-        <ul>
-          <li>Maksimal 30 produk</li>
-          <li>Riwayat transaksi 30 hari</li>
-          <li>Laporan sederhana</li>
-          <li>1 akun pengguna</li>
-        </ul>
-        <a href="register.html" class="btn-ghost">Mulai Gratis</a>
-      </div>
-      <div class="plan hero-plan">
-        <div class="plan-name">Pro</div>
-        <div class="plan-price">Rp29.000<small>/bulan</small></div>
-        <div class="plan-desc">Untuk warung yang berkembang</div>
-        <ul>
-          <li>Maksimal 200 produk</li>
-          <li>Riwayat transaksi 1 tahun</li>
-          <li>Laporan lengkap + grafik</li>
-          <li>Ekspor PDF dan Excel</li>
-          <li>Peringatan stok menipis</li>
-          <li>2 akun pengguna</li>
-        </ul>
-        <a href="register.html" class="btn-primary">Pilih Pro</a>
-      </div>
-      <div class="plan">
-        <div class="plan-name">Pro Max</div>
-        <div class="plan-price">Rp59.000<small>/bulan</small></div>
-        <div class="plan-desc">Untuk bisnis yang sudah mapan</div>
-        <ul>
-          <li>Produk tidak terbatas</li>
-          <li>Riwayat transaksi tidak terbatas</li>
-          <li>Laporan dan analisis lanjutan</li>
-          <li>Ekspor PDF dan Excel</li>
-          <li>5 akun pengguna</li>
-          <li>Backup dan dukungan prioritas</li>
-        </ul>
-        <a href="register.html" class="btn-ghost">Pilih Pro Max</a>
-      </div>
-    </div>
+    <div class="pricing" id="pricing"><p style="grid-column:1/-1; text-align:center; color:var(--mu);">Memuat paket…</p></div>
   </div>
 </section>
 
@@ -359,7 +318,7 @@
 <section class="cta">
   <div class="container">
     <h2>Siap Memodernisasi Warung Anda?</h2>
-    <p>Bergabung dengan ribuan pemilik warung yang sudah beralih ke kasir digital.</p>
+    <p>Bergabung dengan para pemilik warung yang sudah beralih ke kasir digital.</p>
     <a href="register.html">Daftar Gratis Sekarang</a>
   </div>
 </section>
@@ -370,6 +329,51 @@
     <p>&copy; 2026 <b>WarungKasir</b>. Dibuat untuk UMKM Indonesia.</p>
   </div>
 </footer>
+
+<script>
+// Statistik dan paket harga diambil dari database lewat api/stats-publik.php
+(() => {
+  const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const num = (n) => Number(n).toLocaleString('id-ID');
+  const TAGLINE = { free: 'Cocok untuk memulai', pro: 'Untuk warung yang berkembang', promax: 'Untuk bisnis yang sudah mapan' };
+
+  function features(p) {
+    const hist = p.history_days == null ? 'Riwayat transaksi tidak terbatas'
+      : p.history_days === 365 ? 'Riwayat transaksi 1 tahun' : 'Riwayat transaksi ' + num(p.history_days) + ' hari';
+    const f = [p.max_products == null ? 'Produk tidak terbatas' : 'Maksimal ' + num(p.max_products) + ' produk', hist, (p.max_accounts == null ? '-' : p.max_accounts) + ' akun pengguna'];
+    if (p.price_monthly > 0) f.push('Ekspor laporan ke Excel');
+    return f;
+  }
+
+  function renderPlans(plans) {
+    document.getElementById('pricing').innerHTML = plans.map((p) => {
+      const paid = p.price_monthly > 0, pop = p.code === 'pro';
+      const price = paid ? 'Rp' + num(p.price_monthly) + '<small>/bulan</small>' : 'Rp0';
+      const btn = paid ? (pop ? 'btn-primary' : 'btn-ghost') : 'btn-ghost';
+      return '<div class="plan' + (pop ? ' hero-plan' : '') + '">'
+        + '<div class="plan-name">' + esc(p.name) + '</div>'
+        + '<div class="plan-price">' + price + '</div>'
+        + '<div class="plan-desc">' + esc(TAGLINE[p.code] || '') + '</div>'
+        + '<ul>' + features(p).map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>'
+        + '<a href="register.html" class="' + btn + '">' + (paid ? 'Pilih ' + esc(p.name) : 'Mulai Gratis') + '</a></div>';
+    }).join('');
+  }
+
+  (async () => {
+    try {
+      const r = await fetch('api/stats-publik.php', { cache: 'no-store', headers: { Accept: 'application/json' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      if (Number.isFinite(d.warung)) document.getElementById('stat-warung').textContent = num(d.warung);
+      if (Number.isFinite(d.transaksi)) document.getElementById('stat-transaksi').textContent = num(d.transaksi);
+      if (Array.isArray(d.plans) && d.plans.length) renderPlans(d.plans);
+      else throw new Error('paket kosong');
+    } catch (e) {
+      document.getElementById('pricing').innerHTML = '<p style="grid-column:1/-1; text-align:center; color:var(--mu);">Paket belum dapat dimuat. Muat ulang halaman.</p>';
+    }
+  })();
+})();
+</script>
 
 </body>
 </html>
