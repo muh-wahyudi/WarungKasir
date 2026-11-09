@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lupa Kata Sandi - WarungKasir</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .step[hidden]{display:none}
+    .otp-boxes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 22px}
+    .otp-boxes input[type=text]{
+      width:100%;min-width:0;height:54px;margin:0;padding:0;
+      text-align:center;font:inherit;font-size:1.4rem;font-weight:700;color:var(--ink);
+      background:#fff;border:1.5px solid var(--gray300);border-radius:12px;
+      transition:border-color .15s,box-shadow .15s;
+    }
+    .otp-boxes input[type=text]:hover{border-color:#94a3b8}
+    .otp-boxes input[type=text]:focus{outline:none;border-color:var(--g600);box-shadow:0 0 0 4px rgba(22,163,74,.15)}
+    .otp-boxes input[type=text].filled{border-color:var(--g600)}
+    .otp-boxes.error input[type=text]{border-color:#dc2626;animation:otp-shake .3s}
+    @keyframes otp-shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+    .otp-target{font-weight:700;color:var(--ink);word-break:break-all}
+    .resend{margin:18px 0 0;text-align:center;font-size:.92rem;color:var(--gray500)}
+    .resend button{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--g700);cursor:pointer}
+    .resend button:hover:not(:disabled){text-decoration:underline}
+    .resend button:disabled{color:var(--gray500);opacity:.8;cursor:not-allowed}
+    @media (max-width:420px){.otp-boxes{gap:6px}.otp-boxes input[type=text]{height:48px;font-size:1.2rem;border-radius:10px}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="showcase">
+    <a class="brand" href="login.html"><span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg></span><span>WarungKasir</span></a>
+    <div class="showcase-copy">
+      <h2>Catat penjualan, pantau untung, kelola stok.</h2>
+      <p>Kasir digital untuk warung, toko kecil, dan UMKM.</p>
+    </div>
+    <img src="assets/illustration.svg" alt="Ilustrasi dasbor penjualan dan struk kasir digital">
+  </aside>
+  <main class="panel">
+    <section class="card">
+      <a class="brand brand-mobile" href="login.html"><span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg></span><span>WarungKasir</span></a>
+
+      <div id="alert" class="alert" role="alert"></div>
+
+      <!-- Langkah 1: masukkan email -->
+      <div class="step" id="step1">
+        <h1>Lupa Kata Sandi?</h1>
+        <p class="lead">Masukkan email akun Anda. Kami akan mengirim kode 6 digit untuk mengatur ulang kata sandi.</p>
+        <form id="email-form" novalidate>
+          <div class="field">
+            <label for="email">Email</label>
+            <div class="control"><span class="ico mail" aria-hidden="true"></span>
+              <input id="email" name="email" type="email" placeholder="nama@email.com" autocomplete="email" required></div>
+          </div>
+          <button class="btn" type="submit">Kirim Kode</button>
+        </form>
+        <p class="switch">Ingat kata sandi? <a href="login.html">Masuk</a></p>
+      </div>
+
+      <!-- Langkah 2: kode + kata sandi baru -->
+      <div class="step" id="step2" hidden>
+        <h1>Atur Kata Sandi Baru</h1>
+        <p class="lead">Kami telah mengirim kode 6 digit ke <span class="otp-target" id="target"></span>. Jika email belum muncul di kotak masuk, periksa juga folder Spam atau Promosi.</p>
+        <form id="reset-form" novalidate>
+          <label>Kode OTP</label>
+          <div class="otp-boxes" id="boxes" role="group" aria-label="Kode OTP 6 digit">
+            <input type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Digit 1">
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 2">
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 3">
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 4">
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 5">
+            <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 6">
+          </div>
+          <div class="field">
+            <label for="password">Kata sandi baru</label>
+            <div class="control has-toggle"><span class="ico lock" aria-hidden="true"></span>
+              <input id="password" name="password" type="password" placeholder="Minimal 8 karakter" autocomplete="new-password" minlength="8" required>
+              <button type="button" class="toggle" aria-label="Tampilkan kata sandi" aria-pressed="false"><span class="ico eye" aria-hidden="true"></span></button></div>
+          </div>
+          <div class="field">
+            <label for="confirm">Konfirmasi kata sandi</label>
+            <div class="control has-toggle"><span class="ico lock" aria-hidden="true"></span>
+              <input id="confirm" name="confirm" type="password" placeholder="Ulangi kata sandi" autocomplete="new-password" required>
+              <button type="button" class="toggle" aria-label="Tampilkan kata sandi" aria-pressed="false"><span class="ico eye" aria-hidden="true"></span></button></div>
+          </div>
+          <button class="btn" type="submit">Simpan Kata Sandi</button>
+        </form>
+        <p class="resend">Belum menerima kode?
+          <button type="button" id="resend" disabled>Kirim ulang (<span id="count">60</span>s)</button>
+        </p>
+        <p class="switch">Salah email? <a href="lupa-sandi.html">Ganti email</a></p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="js/main.js"></script>
+<script>
+// Memakai $, post(), showAlert() dari js/main.js
+(function () {
+  var COOLDOWN = 60, LENGTH = 6, email = '';
+  var step1 = $('step1'), step2 = $('step2');
+  var emailForm = $('email-form'), resetForm = $('reset-form');
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('#boxes input'));
+  var wrap = $('boxes'), resendBtn = $('resend');
+
+  function clearMsg() { alertBox.className = 'alert'; wrap.classList.remove('error'); }
+  function code() { return boxes.map(function (b) { return b.value; }).join(''); }
+  function resetBoxes() { boxes.forEach(function (b) { b.value = ''; b.classList.remove('filled'); }); boxes[0].focus(); }
+  function busy(btn, on, label) { btn.disabled = on; if (label) btn.textContent = on ? 'Memproses…' : label; }
+  function errText(r, fallback) {
+    var e = r.body.errors ? Object.values(r.body.errors).join(' ') : '';
+    return e || r.body.message || fallback;
+  }
+
+  var timer;
+  function startCooldown() {
+    var left = COOLDOWN;
+    resendBtn.disabled = true;
+    resendBtn.innerHTML = 'Kirim ulang (<span id="count">' + left + '</span>s)';
+    clearInterval(timer);
+    timer = setInterval(function () {
+      left--;
+      if (left <= 0) { clearInterval(timer); resendBtn.disabled = false; resendBtn.textContent = 'Kirim ulang'; return; }
+      $('count').textContent = left;
+    }, 1000);
+  }
+
+  function goStep2() {
+    step1.hidden = true; step2.hidden = false;
+    $('target').textContent = email;
+    startCooldown();
+    boxes[0].focus();
+  }
+
+  // Langkah 1: minta kode
+  emailForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = emailForm.querySelector('.btn');
+    if (btn.disabled) return;
+    email = emailForm.email.value.trim().toLowerCase();
+    clearMsg();
+    busy(btn, true, 'Kirim Kode');
+    post('api/forgot-password.php', { email: email }).then(function (r) {
+      busy(btn, false, 'Kirim Kode');
+      if (r.ok) { showAlert('success', 'Jika email terdaftar, kode reset telah dikirim.'); goStep2(); }
+      else showAlert('error', errText(r, 'Terjadi kesalahan. Coba lagi.'));
+    }).catch(function () {
+      busy(btn, false, 'Kirim Kode');
+      showAlert('error', 'Tidak dapat terhubung ke server. Periksa koneksi Anda.');
+    });
+  });
+
+  // Kirim ulang kode
+  resendBtn.addEventListener('click', function () {
+    resendBtn.disabled = true;
+    post('api/forgot-password.php', { email: email }).then(function (r) {
+      if (r.ok) { showAlert('success', 'Kode baru telah dikirim bila email terdaftar.'); resetBoxes(); startCooldown(); }
+      else { showAlert('error', errText(r, 'Gagal mengirim ulang kode.')); resendBtn.disabled = false; }
+    }).catch(function () {
+      showAlert('error', 'Tidak dapat terhubung ke server. Periksa koneksi Anda.');
+      resendBtn.disabled = false;
+    });
+  });
+
+  // Kotak OTP
+  boxes.forEach(function (box, i) {
+    box.addEventListener('input', function () {
+      box.value = box.value.replace(/\D/g, '').slice(-1);
+      box.classList.toggle('filled', !!box.value);
+      clearMsg();
+      if (box.value && i < LENGTH - 1) boxes[i + 1].focus();
+      else if (box.value && i === LENGTH - 1) $('password').focus();
+    });
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'Backspace' && !box.value && i > 0) { boxes[i - 1].value = ''; boxes[i - 1].classList.remove('filled'); boxes[i - 1].focus(); }
+      else if (e.key === 'ArrowLeft' && i > 0) boxes[i - 1].focus();
+      else if (e.key === 'ArrowRight' && i < LENGTH - 1) boxes[i + 1].focus();
+    });
+    box.addEventListener('focus', function () { box.select(); });
+    box.addEventListener('paste', function (e) {
+      e.preventDefault();
+      var d = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, LENGTH);
+      if (!d) return;
+      d.split('').forEach(function (c, k) { boxes[k].value = c; boxes[k].classList.add('filled'); });
+      if (d.length === LENGTH) $('password').focus(); else boxes[d.length].focus();
+    });
+  });
+
+  // Langkah 2: simpan kata sandi baru
+  resetForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = resetForm.querySelector('.btn');
+    if (btn.disabled) return;
+    if (code().length < LENGTH) { wrap.classList.add('error'); showAlert('error', 'Masukkan 6 digit kode OTP.'); return; }
+    if (resetForm.password.value !== resetForm.confirm.value) { showAlert('error', 'Konfirmasi kata sandi tidak sama.'); return; }
+    if (resetForm.password.value.length < 8) { showAlert('error', 'Kata sandi minimal 8 karakter.'); return; }
+
+    busy(btn, true, 'Simpan Kata Sandi');
+    post('api/reset-password.php', {
+      email: email, otp: code(),
+      password: resetForm.password.value, confirm: resetForm.confirm.value
+    }).then(function (r) {
+      if (r.ok && r.body.redirect) {
+        showAlert('success', r.body.message || 'Kata sandi berhasil diubah.');
+        setTimeout(function () { location.href = r.body.redirect; }, 900);
+        return;
+      }
+      wrap.classList.add('error');
+      showAlert('error', errText(r, 'Kode salah atau sudah kedaluwarsa.'));
+      busy(btn, false, 'Simpan Kata Sandi');
+    }).catch(function () {
+      busy(btn, false, 'Simpan Kata Sandi');
+      showAlert('error', 'Tidak dapat terhubung ke server. Periksa koneksi Anda.');
+    });
+  });
+})();
+</script>
+</body>
+</html>

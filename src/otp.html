@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Verifikasi Kode OTP - WarungKasir</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* Kotak OTP: nilai disamakan dengan input di style.css (radius 12px, border 1.5px, fokus hijau) */
+    .otp-boxes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:0 0 22px}
+    .otp-boxes input[type=text]{
+      width:100%;min-width:0;height:54px;margin:0;padding:0;       /* timpa padding 44px untuk ikon */
+      text-align:center;font:inherit;font-size:1.4rem;font-weight:700;color:var(--ink);
+      background:#fff;border:1.5px solid var(--gray300);border-radius:12px;
+      transition:border-color .15s,box-shadow .15s;
+    }
+    .otp-boxes input[type=text]:hover{border-color:#94a3b8}
+    .otp-boxes input[type=text]:focus{outline:none;border-color:var(--g600);box-shadow:0 0 0 4px rgba(22,163,74,.15)}
+    .otp-boxes input[type=text].filled{border-color:var(--g600)}
+    .otp-boxes.error input[type=text]{border-color:#dc2626;animation:otp-shake .3s}
+    @keyframes otp-shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+    .otp-target{font-weight:700;color:var(--ink);word-break:break-all}
+    .resend{margin:18px 0 0;text-align:center;font-size:.92rem;color:var(--gray500)}
+    .resend button{background:none;border:0;padding:0;font:inherit;font-weight:600;color:var(--g700);cursor:pointer}
+    .resend button:hover:not(:disabled){text-decoration:underline}
+    .resend button:disabled{color:var(--gray500);opacity:.8;cursor:not-allowed}
+    @media (max-width:420px){.otp-boxes{gap:6px}.otp-boxes input[type=text]{height:48px;font-size:1.2rem;border-radius:10px}}
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="showcase">
+    <a class="brand" href="login.html"><span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg></span><span>WarungKasir</span></a>
+    <div class="showcase-copy">
+      <h2>Catat penjualan, pantau untung, kelola stok.</h2>
+      <p>Kasir digital untuk warung, toko kecil, dan UMKM.</p>
+    </div>
+    <img src="assets/illustration.svg" alt="Ilustrasi dasbor penjualan dan struk kasir digital">
+  </aside>
+  <main class="panel">
+    <section class="card">
+      <a class="brand brand-mobile" href="login.html"><span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg></span><span>WarungKasir</span></a>
+      <h1>Verifikasi Akun</h1>
+      <p class="lead">Kami telah mengirim kode 6 digit ke <span class="otp-target" id="target">email Anda</span>. Masukkan kode tersebut untuk menyelesaikan pendaftaran. Jika email belum muncul di kotak masuk, periksa juga folder Spam.</p>
+
+      <div id="alert" class="alert" role="alert"></div>
+
+      <form id="otp-form" novalidate>
+        <div class="otp-boxes" id="boxes" role="group" aria-label="Kode OTP 6 digit">
+          <input type="text" inputmode="numeric" maxlength="1" autocomplete="one-time-code" aria-label="Digit 1" autofocus>
+          <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 2">
+          <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 3">
+          <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 4">
+          <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 5">
+          <input type="text" inputmode="numeric" maxlength="1" aria-label="Digit 6">
+        </div>
+        <button class="btn" type="submit" id="submit">Verifikasi</button>
+      </form>
+
+      <p class="resend">Belum menerima kode?
+        <button type="button" id="resend" disabled>Kirim ulang (<span id="count">60</span>s)</button>
+      </p>
+      <p class="switch">Salah email? <a href="register.html">Kembali ke pendaftaran</a></p>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  var LENGTH = 6, COOLDOWN = 60;
+  var $ = function (id) { return document.getElementById(id); };
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('#boxes input'));
+  var wrap = $('boxes'), form = $('otp-form'), submitBtn = $('submit'), alertBox = $('alert'), resendBtn = $('resend');
+
+  // Email disimpan oleh main.js setelah pendaftaran berhasil
+  var email = '';
+  try { email = sessionStorage.getItem('pendingEmail') || ''; } catch (e) {}
+  if (!email) { location.replace('register.html'); return; }
+  $('target').textContent = email;
+
+  function show(type, text) { alertBox.className = 'alert show ' + type; alertBox.textContent = text; }
+  function clearMsg() { alertBox.className = 'alert'; wrap.classList.remove('error'); }
+  function code() { return boxes.map(function (b) { return b.value; }).join(''); }
+  function resetBoxes() { boxes.forEach(function (b) { b.value = ''; b.classList.remove('filled'); }); boxes[0].focus(); }
+  function submitForm() { form.requestSubmit ? form.requestSubmit() : submitBtn.click(); }
+
+  function post(url, data) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(data)
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (body) { return { ok: res.ok, body: body }; });
+    });
+  }
+
+  boxes.forEach(function (box, i) {
+    box.addEventListener('input', function () {
+      box.value = box.value.replace(/\D/g, '').slice(-1);
+      box.classList.toggle('filled', !!box.value);
+      clearMsg();
+      if (box.value && i < LENGTH - 1) boxes[i + 1].focus();
+      if (code().length === LENGTH) submitForm();
+    });
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'Backspace' && !box.value && i > 0) { boxes[i - 1].value = ''; boxes[i - 1].classList.remove('filled'); boxes[i - 1].focus(); }
+      else if (e.key === 'ArrowLeft' && i > 0) boxes[i - 1].focus();
+      else if (e.key === 'ArrowRight' && i < LENGTH - 1) boxes[i + 1].focus();
+    });
+    box.addEventListener('focus', function () { box.select(); });
+    box.addEventListener('paste', function (e) {
+      e.preventDefault();
+      var digits = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, LENGTH);
+      if (!digits) return;
+      digits.split('').forEach(function (d, k) { boxes[k].value = d; boxes[k].classList.add('filled'); });
+      boxes[Math.min(digits.length, LENGTH - 1)].focus();
+      if (digits.length === LENGTH) submitForm();
+    });
+  });
+
+  // Hitung mundur kirim ulang
+  var timer;
+  function startCooldown() {
+    var left = COOLDOWN;
+    resendBtn.disabled = true;
+    resendBtn.innerHTML = 'Kirim ulang (<span id="count">' + left + '</span>s)';
+    clearInterval(timer);
+    timer = setInterval(function () {
+      left--;
+      if (left <= 0) { clearInterval(timer); resendBtn.disabled = false; resendBtn.textContent = 'Kirim ulang'; return; }
+      $('count').textContent = left;
+    }, 1000);
+  }
+  startCooldown();
+
+  resendBtn.addEventListener('click', function () {
+    resendBtn.disabled = true;
+    post('api/resend-otp.php', { email: email }).then(function (r) {
+      if (r.ok) { show('success', r.body.message || 'Kode baru telah dikirim.'); resetBoxes(); startCooldown(); }
+      else { show('error', r.body.message || 'Gagal mengirim ulang kode.'); resendBtn.disabled = false; }
+    }).catch(function () {
+      show('error', 'Tidak dapat terhubung ke server. Periksa koneksi Anda.');
+      resendBtn.disabled = false;
+    });
+  });
+
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (submitBtn.disabled) return;
+    var value = code();
+    if (value.length < LENGTH) { wrap.classList.add('error'); show('error', 'Masukkan 6 digit kode OTP.'); return; }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Memverifikasi…';
+
+    post('api/verify-otp.php', { email: email, otp: value }).then(function (r) {
+      if (r.ok && r.body.redirect) {
+        try { sessionStorage.removeItem('pendingEmail'); } catch (e) {}
+        show('success', r.body.message || 'Verifikasi berhasil.');
+        setTimeout(function () { location.href = r.body.redirect; }, 900);
+        return;
+      }
+      wrap.classList.add('error');
+      show('error', r.body.message || 'Kode OTP salah atau sudah kedaluwarsa.');
+      resetBoxes();
+      submitBtn.disabled = false; submitBtn.textContent = 'Verifikasi';
+    }).catch(function () {
+      show('error', 'Tidak dapat terhubung ke server. Periksa koneksi Anda.');
+      submitBtn.disabled = false; submitBtn.textContent = 'Verifikasi';
+    });
+  });
+})();
+</script>
+</body>
+</html>

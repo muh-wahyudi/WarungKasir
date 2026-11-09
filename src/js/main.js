@@ -54,8 +54,9 @@ function bindForm(form, url, buildData) {
     try {
       const { ok, body } = await post(url, buildData());
       if (ok && body.redirect) {
+        if (body.email) sessionStorage.setItem('pendingEmail', body.email);
         showAlert('success', body.message || 'Berhasil.');
-        setTimeout(() => { location.href = body.redirect; }, url.includes('register') ? 1200 : 0);
+        setTimeout(() => { location.href = body.redirect; }, url.includes('register') ? 800 : 0);
         return;
       }
       const errs = body.errors || {};
@@ -80,10 +81,9 @@ if (loginForm) {
   if (new URLSearchParams(location.search).get('registered')) {
     showAlert('success', 'Akun berhasil dibuat. Silakan masuk.');
   }
-  $('forgot').addEventListener('click', (e) => {
-    e.preventDefault();
-    showAlert('info', 'Fitur lupa kata sandi belum tersedia karena layanan email belum terhubung.');
-  });
+  if (new URLSearchParams(location.search).get('reset')) {
+    showAlert('success', 'Kata sandi berhasil diubah. Silakan masuk dengan kata sandi baru.');
+  }
 }
 
 const registerForm = $('register-form');
