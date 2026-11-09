@@ -1,10 +1,4 @@
 <?php
-// Rekening bank dan Withdrawal: pengajuan pemilik warung dan proses admin.
-// Semua operasi saldo memakai fungsi ledger di wallet.php (satu transaksi database, baris wallet dikunci).
-//
-// Alur status:  Pending -> Approved -> Processing -> Completed
-//               Pending/Approved -> Rejected        (saldo kembali ke tersedia)
-//               Processing -> Failed                (saldo kembali ke tersedia)
 require_once __DIR__ . '/wallet.php';
 
 const WD_OPEN = ['Pending', 'Approved', 'Processing'];
