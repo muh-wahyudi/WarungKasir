@@ -1,5 +1,3 @@
-// Halaman Pengaturan. Data dan penyimpanan lewat api/pengaturan-data.php.
-// Fungsi bersama ($, rp, esc, postJSON, toast, dll.) ada di owner-common.js.
 (() => {
 const TABS = ['profil', 'usaha', 'keamanan', 'paket'];
 const BOX = { profil: '#v-profil', usaha: '#v-usaha', keamanan: '#v-keamanan', paket: '#v-paket' };
@@ -7,11 +5,11 @@ let data = null;
 let tab = 'profil';
 let payInterval = null;
 let payOrderId = null;
+let emailChangeTarget = '';
 
 const tabFromHash = () => { const t = location.hash.replace('#', ''); return TABS.includes(t) ? t : 'profil'; };
 const initials = (n) => n.trim().split(/\s+/).slice(0, 2).map((w) => (w[0] || '').toUpperCase()).join('');
 
-/* ---------- Pengambilan data ---------- */
 async function load() {
   try {
     const r = await fetch('api/pengaturan-data.php', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
@@ -38,7 +36,6 @@ function fill() {
   renderPlan();
 }
 
-/* ---------- Paket ---------- */
 function features(p) {
   const hist = p.history_days == null ? 'Riwayat transaksi tidak terbatas' : p.history_days === 365 ? 'Riwayat transaksi satu tahun' : `Riwayat transaksi ${num(p.history_days)} hari`;
   const f = [p.max_products == null ? 'Produk tidak terbatas' : `Maksimal ${num(p.max_products)} produk`, hist, `${p.max_accounts ?? '-'} akun pengguna`];
@@ -79,7 +76,6 @@ function renderPlan() {
   const sp = $('#side-plan'); if (sp) sp.textContent = p.name;
 }
 
-/* ---------- Checkout Langganan ---------- */
 function stopPay() {
   if (payInterval) clearInterval(payInterval);
   payInterval = null;
@@ -116,10 +112,6 @@ async function processPayment(planCode, price, btn) {
       return;
     }
 
-    // PERBAIKAN: simpan order ID di variabel lokal dan hentikan polling lama
-    // SEBELUM mengisi payOrderId. Sebelumnya stopPay() dipanggil setelah
-    // payOrderId diisi sehingga nilainya kembali menjadi null dan polling
-    // mengirim order_id kosong ("Transaksi langganan tidak ditemukan").
     const orderId = body.order_id;
     stopPay();
     payOrderId = orderId;
@@ -132,7 +124,6 @@ async function processPayment(planCode, price, btn) {
         </div>
         <p style="margin-top:16px; font-weight:700;">Total: ${rp(body.total)}</p>
         <p id="pay-status" style="color:var(--warn); font-weight:600; margin-top:8px;">Menunggu pembayaran...</p>
-        <div id="pay-debug" style="margin-top:8px; font-size:0.75rem; color:var(--mu); text-align:left;"></div>
         <button class="btn line" type="button" id="btn-cek-status" style="margin-top:12px; width:100%;">Cek Status Manual</button>
       </div>
       <div class="modal-f">
@@ -142,9 +133,9 @@ async function processPayment(planCode, price, btn) {
 
     let checking = false;
     const checkStatus = async () => {
-      if (checking) return;               // hindari request bertumpuk
+      if (checking) return;
       const statusEl = document.getElementById('pay-status');
-      if (!statusEl) { stopPay(); return; } // modal sudah ditutup: hentikan polling
+      if (!statusEl) { stopPay(); return; }
       checking = true;
       try {
         const r = await postJSON('api/pengaturan-data.php', { action: 'check_status', order_id: orderId });
@@ -160,21 +151,9 @@ async function processPayment(planCode, price, btn) {
           toast(r.body.message || 'Pembayaran berhasil. Paket diaktifkan.');
           load();
         } else {
-          const dbg = r.body.debug || {};
           const st = r.body.midtrans_status || 'unknown';
-          const sc = dbg.status_code || '-';
-          const sm = dbg.status_message || '-';
-
           statusEl.textContent = `Status: ${st.toUpperCase()}`;
           statusEl.style.color = st === 'settlement' ? 'var(--gd)' : 'var(--warn)';
-
-          const dbgEl = document.getElementById('pay-debug');
-          if (dbgEl) dbgEl.innerHTML = `
-            <p>Order ID: <b>${esc(dbg.order_id_sent || orderId)}</b></p>
-            <p>Status Code: <b>${esc(sc)}</b></p>
-            <p>Message: <b>${esc(sm)}</b></p>
-            <p>Transaction Status: <b style="color:var(--err)">${esc(st)}</b></p>
-          `;
         }
       } catch (e) {
         statusEl.textContent = 'Tidak dapat terhubung ke server.';
@@ -185,8 +164,6 @@ async function processPayment(planCode, price, btn) {
     };
 
     document.getElementById('btn-cek-status').onclick = checkStatus;
-
-    // Auto polling tiap 3 detik
     payInterval = setInterval(checkStatus, 3000);
 
   } catch (e) {
@@ -196,7 +173,6 @@ async function processPayment(planCode, price, btn) {
   }
 }
 
-/* ---------- Nama di menu dan header ---------- */
 function syncIdentity() {
   const name = data.profile.full_name, biz = data.business.business_name;
   $$('.av').forEach((a) => { a.textContent = initials(name); });
@@ -205,7 +181,6 @@ function syncIdentity() {
   const sub = $('.head-t p'); if (sub) sub.textContent = 'Kelola akun, usaha, dan paket · ' + biz;
 }
 
-/* ---------- Formulir ---------- */
 function clearErrors(form) {
   $$('.ferr', form).forEach((e) => { e.textContent = ''; });
   $$('[aria-invalid]', form).forEach((el) => el.removeAttribute('aria-invalid'));
@@ -264,7 +239,95 @@ $('#f-keamanan').addEventListener('submit', (e) => {
   });
 });
 
-/* ---------- Event Listeners ---------- */
+/* ---------- Ganti Email ---------- */
+function openChangeEmailModal() {
+  modal('Ganti Email', `
+    <form id="email-change-form" novalidate>
+      <p class="sub-n" style="margin-top:0">Masukkan email baru. Kami akan mengirim kode verifikasi ke email tersebut.</p>
+      <div class="fld">
+        <label for="new-email">Email baru</label>
+        <input id="new-email" name="new_email" type="email" autocomplete="email" maxlength="190" placeholder="nama@email.com">
+        <p class="ferr" id="e-new_email"></p>
+      </div>
+      <p class="ferr" id="e-form-email"></p>
+      <div class="modal-f">
+        <button class="btn line" type="button" data-act="close">Batal</button>
+        <button class="btn" type="submit">Kirim Kode</button>
+      </div>
+    </form>`);
+  $('#new-email').focus();
+}
+
+function openVerifyEmailModal(newEmail) {
+  emailChangeTarget = newEmail;
+  modal('Verifikasi Email Baru', `
+    <form id="email-verify-form" novalidate>
+      <p class="sub-n" style="margin-top:0">Kode 6 digit telah dikirim ke <b>${esc(newEmail)}</b>. Masukkan kode tersebut untuk menyelesaikan perubahan.</p>
+      <div class="fld">
+        <label for="email-otp">Kode verifikasi</label>
+        <input id="email-otp" name="otp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" style="font-size:1.4rem;letter-spacing:8px;text-align:center;font-weight:700;">
+        <p class="ferr" id="e-otp"></p>
+      </div>
+      <p class="ferr" id="e-form-email-verify"></p>
+      <div class="modal-f">
+        <button class="btn line" type="button" data-act="close">Batal</button>
+        <button class="btn" type="submit">Verifikasi</button>
+      </div>
+    </form>`);
+  $('#email-otp').focus();
+}
+
+document.addEventListener('submit', async (e) => {
+  if (e.target.id === 'email-change-form') {
+    e.preventDefault();
+    const form = e.target;
+    $$('.ferr', form).forEach((el) => { el.textContent = ''; });
+    const btn = form.querySelector('button[type=submit]');
+    if (btn.disabled) return;
+    const newEmail = $('#new-email').value.trim();
+    btn.disabled = true; btn.textContent = 'Mengirim…';
+    try {
+      const { ok, body } = await postJSON('api/email-change.php', { action: 'request', new_email: newEmail });
+      if (ok) {
+        openVerifyEmailModal(body.new_email || newEmail);
+        toast(body.message || 'Kode terkirim.');
+        return;
+      }
+      const errs = body.errors || {};
+      Object.keys(errs).forEach((k) => { const box = $('#e-' + k); if (box) box.textContent = errs[k]; });
+      if (!Object.keys(errs).length) $('#e-form-email').textContent = body.message || 'Gagal mengirim kode.';
+    } catch (err) {
+      $('#e-form-email').textContent = 'Tidak dapat terhubung ke server.';
+    }
+    btn.disabled = false; btn.textContent = 'Kirim Kode';
+  }
+
+  if (e.target.id === 'email-verify-form') {
+    e.preventDefault();
+    const form = e.target;
+    $$('.ferr', form).forEach((el) => { el.textContent = ''; });
+    const btn = form.querySelector('button[type=submit]');
+    if (btn.disabled) return;
+    const otp = $('#email-otp').value.replace(/\D/g, '');
+    if (otp.length !== 6) { $('#e-otp').textContent = 'Masukkan 6 digit kode.'; return; }
+    btn.disabled = true; btn.textContent = 'Memverifikasi…';
+    try {
+      const { ok, body } = await postJSON('api/email-change.php', { action: 'verify', otp });
+      if (ok && body.redirect) {
+        toast(body.message || 'Email berhasil diubah.');
+        setTimeout(() => { location.href = body.redirect; }, 1500);
+        return;
+      }
+      const errs = body.errors || {};
+      Object.keys(errs).forEach((k) => { const box = $('#e-' + k); if (box) box.textContent = errs[k]; });
+      if (!Object.keys(errs).length) $('#e-form-email-verify').textContent = body.message || 'Gagal verifikasi.';
+    } catch (err) {
+      $('#e-form-email-verify').textContent = 'Tidak dapat terhubung ke server.';
+    }
+    btn.disabled = false; btn.textContent = 'Verifikasi';
+  }
+});
+
 document.addEventListener('click', (e) => {
   const payBtn = e.target.closest('[data-pay]');
   if (payBtn) {
@@ -282,15 +345,20 @@ document.addEventListener('click', (e) => {
   if (cancelPay) {
     stopPay();
     closeModal();
+    return;
+  }
+
+  if (e.target.closest('#btn-change-email')) {
+    openChangeEmailModal();
+    return;
   }
 });
 
-/* ---------- Tab ---------- */
 function setTab(t, writeHash) {
   tab = t;
   $$('[data-tab]').forEach((b) => { const on = b.dataset.tab === t; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   TABS.forEach((k) => { $(BOX[k]).hidden = k !== t; });
-  if (writeHash) { try { history.replaceState(null, '', '#' + t); } catch (e) { /* alamat tidak bisa diubah: abaikan */ } }
+  if (writeHash) { try { history.replaceState(null, '', '#' + t); } catch (e) { } }
 }
 
 $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b && b.dataset.tab !== tab) setTab(b.dataset.tab, true); });

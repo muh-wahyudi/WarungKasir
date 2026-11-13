@@ -10,6 +10,15 @@ function fmt_date(?string $dt): ?string {
     return (int) $d->format('j') . ' ' . MON[(int) $d->format('n')] . ' ' . $d->format('Y');
 }
 
+function rate_limit_or_fail(string $key, int $seconds, string $message): void {
+    $now = time();
+    $last = (int) ($_SESSION['rl_' . $key] ?? 0);
+    if ($now - $last < $seconds) {
+        json_out(429, ['message' => $message]);
+    }
+    $_SESSION['rl_' . $key] = $now;
+}
+
 function account_data(PDO $pdo, int $uid): array {
     $u = db_one($pdo, 'SELECT full_name, business_name, email, phone, created_at FROM users WHERE id = ?', [$uid]);
     $pr = db_one($pdo, 'SELECT alamat FROM user_profiles WHERE user_id = ?', [$uid]);
@@ -41,6 +50,7 @@ function normalize_phone($raw): ?string {
 }
 
 function save_profile(PDO $pdo, int $uid, array $b): void {
+    rate_limit_or_fail('profile', 5, 'Tunggu 5 detik sebelum menyimpan lagi.');
     $e = [];
     $name = clean($b['full_name'] ?? '');
     if (mb_strlen($name) < 2 || mb_strlen($name) > 100) $e['full_name'] = 'Nama lengkap harus 2–100 karakter.';
@@ -59,6 +69,7 @@ function save_profile(PDO $pdo, int $uid, array $b): void {
 }
 
 function save_business(PDO $pdo, int $uid, array $b): void {
+    rate_limit_or_fail('business', 5, 'Tunggu 5 detik sebelum menyimpan lagi.');
     $e = [];
     $biz = clean($b['business_name'] ?? '');
     $alamat = clean($b['alamat'] ?? '');
@@ -100,10 +111,10 @@ function change_password(PDO $pdo, int $uid, array $b): void {
     }
     $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([password_hash($new, PASSWORD_DEFAULT), $uid]);
     $pdo->prepare('DELETE FROM login_attempts WHERE email = ?')->execute([$me['email']]);
+    session_regenerate_id(true);
     json_out(200, ['message' => 'Kata sandi berhasil diubah.']);
 }
 
-/* ---------- Langganan ---------- */
 function handle_subscription(PDO $pdo, int $uid, array $b): void {
     $action = $b['action'] ?? '';
 
@@ -137,36 +148,63 @@ function handle_subscription(PDO $pdo, int $uid, array $b): void {
 
     if ($action === 'check_status') {
         $orderId = clean($b['order_id'] ?? '');
-        $sub = db_one($pdo, "SELECT id, plan_id, status FROM subscriptions WHERE user_id = ? AND payment_ref = ? LIMIT 1", [$uid, $orderId]);
+        $sub = db_one($pdo, "SELECT s.id, s.plan_id, s.status, p.price_monthly
+                             FROM subscriptions s
+                             JOIN plans p ON p.id = s.plan_id
+                             WHERE s.user_id = ? AND s.payment_ref = ? LIMIT 1", [$uid, $orderId]);
         if (!$sub) json_out(404, ['message' => 'Transaksi langganan tidak ditemukan.']);
 
-        if ($sub['status'] === 'active') json_out(200, ['status' => 'active', 'message' => 'Paket sudah aktif.']);
+        if ($sub['status'] === 'active') {
+            json_out(200, ['status' => 'active', 'message' => 'Paket sudah aktif.']);
+        }
 
-        // Panggil Midtrans
+        if ($sub['status'] !== 'pending_payment') {
+            json_out(409, ['message' => 'Status langganan tidak dapat diproses: ' . $sub['status'] . '.']);
+        }
+
         $r = midtrans_get_status($orderId);
         $ts = $r['transaction_status'] ?? 'not_found';
-        
-        // DEBUG: kirim seluruh response Midtrans ke browser
+
         if ($ts !== 'settlement' && $ts !== 'capture') {
-            json_out(200, [
+            $resp = [
                 'status' => 'pending_payment',
                 'message' => 'Menunggu pembayaran.',
                 'midtrans_status' => $ts,
-                'debug' => [
+            ];
+            if (getenv('APP_ENV') === 'development') {
+                $resp['debug'] = [
                     'order_id_sent' => $orderId,
-                    'midtrans_raw' => $r,
-                    'transaction_status' => $ts,
                     'status_code' => $r['status_code'] ?? '-',
                     'status_message' => $r['status_message'] ?? '-',
-                ],
-            ]);
+                ];
+            }
+            json_out(200, $resp);
         }
-        
-        // Jika settlement/capture
+
+        $gross = (int) round((float) ($r['gross_amount'] ?? 0));
+        if ($gross !== (int) $sub['price_monthly']) {
+            error_log("[pengaturan] nominal Midtrans ($gross) beda dengan harga paket ({$sub['price_monthly']}) untuk order $orderId");
+            json_out(409, ['message' => 'Nominal pembayaran tidak sesuai dengan harga paket. Hubungi admin.']);
+        }
+
         $pdo->beginTransaction();
-        $pdo->prepare("UPDATE subscriptions SET status = 'expired' WHERE user_id = ? AND status = 'active'")->execute([$uid]);
-        $pdo->prepare("UPDATE subscriptions SET status = 'active', started_at = NOW(), ends_at = DATE_ADD(NOW(), INTERVAL 30 DAY) WHERE id = ?")->execute([$sub['id']]);
-        $pdo->commit();
+        try {
+            $locked = db_one($pdo, 'SELECT status FROM subscriptions WHERE id = ? FOR UPDATE', [(int) $sub['id']]);
+            if (!$locked || $locked['status'] !== 'pending_payment') {
+                $pdo->rollBack();
+                json_out(200, ['status' => 'active', 'message' => 'Paket sudah aktif.']);
+            }
+
+            $pdo->prepare("UPDATE subscriptions SET status = 'expired' WHERE user_id = ? AND status = 'active'")->execute([$uid]);
+            $pdo->prepare("UPDATE subscriptions SET status = 'active', started_at = NOW(), ends_at = DATE_ADD(NOW(), INTERVAL 30 DAY)
+                           WHERE id = ? AND status = 'pending_payment'")->execute([(int) $sub['id']]);
+
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            throw $e;
+        }
+
         json_out(200, ['status' => 'active', 'message' => 'Pembayaran diterima. Paket berhasil diaktifkan.']);
     }
 }
@@ -179,12 +217,12 @@ try {
 
     $b = read_post_json();
     $action = is_string($b['action'] ?? null) ? $b['action'] : '';
-    
+
     if ($action === 'save_profile') save_profile($pdo, $uid, $b);
     if ($action === 'save_business') save_business($pdo, $uid, $b);
     if ($action === 'change_password') change_password($pdo, $uid, $b);
     if (in_array($action, ['checkout', 'check_status'])) handle_subscription($pdo, $uid, $b);
-    
+
     json_out(400, ['message' => 'Aksi tidak dikenal.']);
 } catch (Throwable $ex) {
     error_log('[pengaturan] ' . $ex->getMessage());

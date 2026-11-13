@@ -26,6 +26,9 @@ owner_layout_start($u, 'pengaturan', 'Pengaturan', 'Kelola akun, usaha, dan pake
         .pl ul { flex: 1; margin: 0; padding-left: 18px; color: #334155; font-size: .92rem; }
         .pl li { margin-bottom: 4px; }
         .pl .btn, .pl .badge { align-self: flex-start; }
+        .email-row { display: flex; gap: 8px; align-items: stretch; }
+        .email-row input { flex: 1; }
+        .email-row .btn { white-space: nowrap; }
         @media (max-width: 900px) { .pl-grid { grid-template-columns: 1fr; } }
         @media (max-width: 720px) {
           .st-bar { flex-direction: column; align-items: stretch; }
@@ -33,6 +36,7 @@ owner_layout_start($u, 'pengaturan', 'Pengaturan', 'Kelola akun, usaha, dan pake
           .st-bar .seg button { flex: 1 1 auto; }
           .fld textarea { font-size: 16px; }
           .st-actions .btn { width: 100%; }
+          .email-row { flex-direction: column; }
         }
       </style>
 
@@ -47,20 +51,25 @@ owner_layout_start($u, 'pengaturan', 'Pengaturan', 'Kelola akun, usaha, dan pake
         </div>
       </div>
 
-      <!-- Profil -->
       <section id="v-profil" class="card st-card" aria-labelledby="h-profil">
         <div class="card-h"><h2 id="h-profil">Profil Saya</h2></div>
         <p class="st-lead">Data akun pemilik. Email dipakai untuk masuk.</p>
         <form id="f-profil" novalidate>
           <div class="fld"><label for="p-name">Nama lengkap</label><input id="p-name" name="full_name" maxlength="100" autocomplete="name" required><p class="ferr" id="e-full_name"></p></div>
-          <div class="fld"><label for="p-email">Email</label><input id="p-email" type="email" readonly aria-describedby="h-email"><p class="hint" id="h-email">Email belum dapat diubah karena layanan verifikasi email belum terhubung.</p></div>
+          <div class="fld">
+            <label for="p-email">Email</label>
+            <div class="email-row">
+              <input id="p-email" type="email" readonly aria-describedby="h-email">
+              <button class="btn line" type="button" id="btn-change-email">Ganti Email</button>
+            </div>
+            <p class="hint" id="h-email">Email dipakai untuk login. Perubahan butuh verifikasi kode OTP yang dikirim ke email baru.</p>
+          </div>
           <div class="fld"><label for="p-phone">Nomor HP</label><input id="p-phone" name="phone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" required><p class="ferr" id="e-phone"></p></div>
           <p class="ferr" id="e-form-profil"></p>
           <div class="st-actions"><button class="btn" type="submit">Simpan Perubahan</button><span class="hint" id="p-since"></span></div>
         </form>
       </section>
 
-      <!-- Usaha -->
       <section id="v-usaha" class="card st-card" aria-labelledby="h-usaha" hidden>
         <div class="card-h"><h2 id="h-usaha">Data Usaha</h2></div>
         <p class="st-lead">Nama usaha tampil di menu dan di halaman Anda.</p>
@@ -72,7 +81,6 @@ owner_layout_start($u, 'pengaturan', 'Pengaturan', 'Kelola akun, usaha, dan pake
         </form>
       </section>
 
-      <!-- Keamanan -->
       <section id="v-keamanan" class="card st-card" aria-labelledby="h-keamanan" hidden>
         <div class="card-h"><h2 id="h-keamanan">Ubah Kata Sandi</h2></div>
         <p class="st-lead">Gunakan kata sandi yang kuat dan tidak dipakai di tempat lain.</p>
@@ -85,7 +93,6 @@ owner_layout_start($u, 'pengaturan', 'Pengaturan', 'Kelola akun, usaha, dan pake
         </form>
       </section>
 
-      <!-- Paket langganan -->
       <section id="v-paket" aria-label="Paket langganan" hidden>
         <section class="card pk-cur" id="pk-cur" aria-live="polite"></section>
         <div class="sec-h"><div class="sec-t"><h2>Pilihan Paket</h2></div></div>
