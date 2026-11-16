@@ -1,6 +1,10 @@
 <?php
 require __DIR__ . '/includes/owner_layout.php';
 $u = owner_page_guard($pdo);
+if (!owner_can($u, 'kasir')) {
+    header('Location: owner-dashboard.php');
+    exit;
+}
 owner_layout_start($u, 'kasir', 'Kasir', 'Catat penjualan · ' . e($u['business_name']));
 ?>
       <style>

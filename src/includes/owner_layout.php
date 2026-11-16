@@ -2,7 +2,6 @@
 require_once __DIR__ . '/owner.php';
 
 function e($v): string { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); }
-// URL aset dengan nomor versi otomatis (waktu ubah file), agar browser tidak memakai JS lama dari cache.
 function asset_url(string $path): string {
     $f = __DIR__ . '/../' . $path;
     return e($path) . '?v=' . (is_file($f) ? filemtime($f) : '0');
@@ -15,14 +14,34 @@ function owner_first_name(array $u): string { return preg_split('/\s+/', trim($u
 
 function owner_layout_start(array $u, string $active, string $title, string $subHtml): void {
     $ini = e(owner_initials($u['full_name']));
-    $items = [
-        ['dashboard', 'Dashboard', 'home', 'owner-dashboard.php'],
-        ['kasir', 'Kasir', 'cart', 'kasir.php'],
-        ['produk', 'Produk & Stok', 'box', 'produk.php'],
-        ['transaksi', 'Transaksi & Laporan', 'receipt', 'transaksi.php'],
-        ['saldo', 'Saldo & Withdrawal', 'wallet', 'saldo.php'],
-        ['pengaturan', 'Pengaturan', 'sliders', 'pengaturan.php'],
+    $role = $u['team_role'] ?? 'owner';
+    $roleLabel = ['owner' => 'Pemilik', 'admin' => 'Admin', 'kasir' => 'Kasir'][$role] ?? 'Staf';
+
+    $allItems = [
+        ['dashboard', 'Dashboard', 'home', 'owner-dashboard.php', 'dashboard'],
+        ['kasir', 'Kasir', 'cart', 'kasir.php', 'kasir'],
+        ['produk', 'Produk & Stok', 'box', 'produk.php', 'produk'],
+        ['transaksi', 'Transaksi & Laporan', 'receipt', 'transaksi.php', 'transaksi'],
+        ['saldo', 'Saldo & Withdrawal', 'wallet', 'saldo.php', 'saldo'],
+        ['pengaturan', 'Pengaturan', 'sliders', 'pengaturan.php', 'pengaturan'],
     ];
+    $items = array_values(array_filter($allItems, fn($it) => owner_can($u, $it[4])));
+
+    $wk = json_encode([
+        'role' => $role,
+        'roleLabel' => $roleLabel,
+        'ownerId' => (int) ($u['owner_id'] ?? $u['id']),
+        'can' => [
+            'dashboard' => owner_can($u, 'dashboard'),
+            'kasir' => owner_can($u, 'kasir'),
+            'produk' => owner_can($u, 'produk'),
+            'transaksi' => owner_can($u, 'transaksi'),
+            'saldo' => owner_can($u, 'saldo'),
+            'pengaturan' => owner_can($u, 'pengaturan'),
+            'staf' => owner_can($u, 'staf'),
+            'langganan' => owner_can($u, 'langganan'),
+        ],
+    ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -33,6 +52,7 @@ function owner_layout_start(array $u, string $active, string $title, string $sub
   <title><?= e($title) ?> - WarungKasir</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/owner-dashboard.css?v=2">
+  <script>window.WK = <?= $wk ?>;</script>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
@@ -55,13 +75,14 @@ function owner_layout_start(array $u, string $active, string $title, string $sub
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
   <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h12v4"/><path d="M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-3"/><path d="M21 9h-4a2 2 0 0 0 0 4h4z"/></symbol>
   <symbol id="i-camera" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2 20a7 7 0 0 1 14 0"/><circle cx="17" cy="9" r="2.5"/><path d="M17 14a5 5 0 0 1 5 5"/></symbol>
 </defs></svg>
 
 <div class="shell">
   <div class="scrim" id="scrim"></div>
 <?php if ($active === 'dashboard'): ?>
   <nav class="tabbar" aria-label="Navigasi cepat">
-<?php foreach ($items as [$key, $label, $icon, $href]): if (!in_array($key, ['dashboard', 'kasir', 'produk'], true)) continue; ?>
+<?php foreach ($items as [$key, $label, $icon, $href, $perm]): if (!in_array($key, ['dashboard', 'kasir', 'produk'], true)) continue; ?>
     <a <?= $key === $active ? 'class="on" aria-current="page" ' : '' ?>href="<?= e($href) ?>"><svg class="i" aria-hidden="true"><use href="#i-<?= $icon ?>"/></svg><span><?= e($key === 'produk' ? 'Produk' : $label) ?></span></a>
 <?php endforeach; ?>
     <button type="button" id="tab-more" aria-label="Buka menu lengkap"><svg class="i" aria-hidden="true"><use href="#i-menu"/></svg><span>Menu</span></button>
@@ -69,15 +90,15 @@ function owner_layout_start(array $u, string $active, string $title, string $sub
 <?php endif; ?>
   <aside class="side" id="side" aria-label="Menu utama">
     <div class="side-head">
-      <a class="brand" href="owner-dashboard.php"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg></span>WarungKasir</a>
+      <a class="brand" href="<?= owner_can($u, 'dashboard') ? 'owner-dashboard.php' : 'kasir.php' ?>"><span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg></span>WarungKasir</a>
       <button class="icon-btn close-side" id="close-side" type="button" aria-label="Tutup menu"><svg class="i"><use href="#i-x"/></svg></button>
     </div>
     <nav class="nav">
-<?php foreach ($items as [$key, $label, $icon, $href]): ?>
-      <a <?= $key === $active ? 'class="on" aria-current="page" ' : '' ?>href="<?= $href ? e($href) : '#' ?>"<?= $href ? '' : ' data-soon="' . e($label) . '"' ?>><svg class="i" aria-hidden="true"><use href="#i-<?= $icon ?>"/></svg><?= e($label) ?></a>
+<?php foreach ($items as [$key, $label, $icon, $href, $perm]): ?>
+      <a <?= $key === $active ? 'class="on" aria-current="page" ' : '' ?>href="<?= e($href) ?>"><svg class="i" aria-hidden="true"><use href="#i-<?= $icon ?>"/></svg><?= e($label) ?></a>
 <?php endforeach; ?>
     </nav>
-    <div class="profile"><span class="av"><?= $ini ?></span><div><b><?= e($u['full_name']) ?></b><small>Pemilik · Paket <span id="side-plan"><?= e($u['plan']) ?></span></small></div></div>
+    <div class="profile"><span class="av"><?= $ini ?></span><div><b><?= e($u['full_name']) ?></b><small><?= e($roleLabel) ?> · Paket <span id="side-plan"><?= e($u['plan']) ?></span></small></div></div>
   </aside>
 
   <div class="content">
@@ -92,8 +113,10 @@ function owner_layout_start(array $u, string $active, string $title, string $sub
         <div class="dd">
           <button class="who" id="who" type="button" aria-haspopup="menu" aria-expanded="false"><span class="av"><?= $ini ?></span><span class="who-n"><?= e(owner_first_name($u)) ?></span><svg class="i"><use href="#i-chev"/></svg></button>
           <div class="menu-dd" id="dd" role="menu" hidden>
+<?php if (owner_can($u, 'pengaturan')): ?>
             <a href="pengaturan.php#profil" role="menuitem">Profil Saya</a>
             <a href="pengaturan.php#usaha" role="menuitem">Pengaturan Usaha</a>
+<?php endif; ?>
             <a href="login.html" role="menuitem" id="logout">Keluar</a>
           </div>
         </div>

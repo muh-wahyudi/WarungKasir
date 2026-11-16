@@ -1,6 +1,7 @@
 const POLL_MS = 30000;
 const state = { q: '', stok: '', sort: 'terbaru', page: 1 };
 const STATUS = { aman: ['Aman', ''], menipis: ['Menipis', 'w'], habis: ['Habis', 'e'] };
+const CAN_EDIT = !!(window.WK && window.WK.can && window.WK.can.produk);
 let data = null, busy = false, again = false;
 const initials = (n) => esc(n.split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase());
 const thumb = (x) => x.image ? `<img class="pimg" src="${esc(x.image)}" alt="" width="44" height="44" loading="lazy">` : `<span class="pimg ph" aria-hidden="true">${initials(x.name)}</span>`;
@@ -46,9 +47,9 @@ function render() {
   note.textContent = ratio >= 1 ? 'Batas produk paket Anda sudah tercapai. Hapus produk yang tidak dipakai atau upgrade paket untuk menambah produk.' : 'Kapasitas produk hampir penuh. Pertimbangkan upgrade paket sebelum batasnya tercapai.';
 
   const filtered = state.q || state.stok;
-  $('#pt').innerHTML = data.items.length ? data.items.map((x, i) => `<tr><td data-label="Produk"><div class="pcell">${thumb(x)}<div><b>${esc(x.name)}</b>${x.sku ? `<br><small class="muted">Kode: ${esc(x.sku)}</small>` : ''}</div></div></td><td data-label="Harga">${rp(x.price)}</td><td data-label="Stok"><b>${num(x.stock)}</b></td><td data-label="Status"><span class="badge ${STATUS[x.status][1]}">${STATUS[x.status][0]}</span></td><td data-label="Batas Stok">${num(x.min_stock)}</td><td data-label="Aksi"><button class="link" type="button" data-act="edit" data-i="${i}">Ubah</button> <button class="link danger" type="button" data-act="del" data-i="${i}">Hapus</button></td></tr>`).join('')
+  $('#pt').innerHTML = data.items.length ? data.items.map((x, i) => `<tr><td data-label="Produk"><div class="pcell">${thumb(x)}<div><b>${esc(x.name)}</b>${x.sku ? `<br><small class="muted">Kode: ${esc(x.sku)}</small>` : ''}</div></div></td><td data-label="Harga">${rp(x.price)}</td><td data-label="Stok"><b>${num(x.stock)}</b></td><td data-label="Status"><span class="badge ${STATUS[x.status][1]}">${STATUS[x.status][0]}</span></td><td data-label="Batas Stok">${num(x.min_stock)}</td><td data-label="Aksi">${CAN_EDIT ? `<button class="link" type="button" data-act="edit" data-i="${i}">Ubah</button> <button class="link danger" type="button" data-act="del" data-i="${i}">Hapus</button>` : '-'}</td></tr>`).join('')
     : s.total === 0
-      ? '<tr><td colspan="6" class="empty">Belum ada produk. Tambahkan produk pertama Anda untuk mulai berjualan.<br><br><button class="btn" type="button" data-act="add">Tambah Produk</button></td></tr>'
+      ? `<tr><td colspan="6" class="empty">Belum ada produk.${CAN_EDIT ? '<br><br><button class="btn" type="button" data-act="add">Tambah Produk</button>' : ''}</td></tr>`
       : `<tr><td colspan="6" class="empty">Tidak ada produk yang cocok dengan ${filtered ? 'pencarian atau filter ini' : 'tampilan ini'}.<br><br><button class="link" type="button" data-act="reset">Hapus pencarian dan filter</button></td></tr>`;
 
   const from = data.total ? (data.page - 1) * data.per + 1 : 0, to = from ? from + data.items.length - 1 : 0;
@@ -233,10 +234,9 @@ async function startScan() {
 }
 
 function productForm(x = null, restock = false) {
+  if (!CAN_EDIT) { toast('Anda tidak memiliki akses untuk mengubah produk.'); return; }
   const isEdit = x && !restock;
   const v = (k, d = '') => esc(x ? (x[k] ?? d) : d);
-  
-  // Perbaikan: Selalu simpan ID produk, baik untuk edit maupun restock
   const productId = x ? x.id : '';
 
   photo = emptyPhoto(x && !restock ? x.image : null);
@@ -244,7 +244,6 @@ function productForm(x = null, restock = false) {
   const title = isEdit ? 'Ubah Produk' : (restock ? 'Tambah Stok Produk' : 'Tambah Produk');
   const btnText = isEdit ? 'Simpan Perubahan' : (restock ? 'Tambah Stok' : 'Tambah Produk');
 
-  // Perbaikan: data-id diisi productId
   modal(title, `<form id="pf" novalidate data-id="${productId}" data-restock="${restock ? '1' : '0'}">
     <div class="fld"><label>Foto produk <span class="opt">(opsional)</span></label>
       <div class="photo-row"><div class="pv" id="pv"></div>
@@ -325,7 +324,6 @@ document.addEventListener('submit', async (ev) => {
     min_stock: f.min_stock.value.trim()
   };
 
-  // Validasi manual per mode
   const errs = {};
   if (!isRestock) {
     if (d.name.length < 2) errs.name = 'Nama produk minimal 2 karakter.';
@@ -333,7 +331,6 @@ document.addEventListener('submit', async (ev) => {
     if (!/^\d+$/.test(d.price) || Number(d.price) < 1) errs.price = 'Isi harga dengan angka bulat, minimal Rp1.';
     if (!/^\d+$/.test(d.min_stock) || Number(d.min_stock) < 0) errs.min_stock = 'Isi batas stok dengan angka bulat, 0 atau lebih.';
   }
-  // Validasi stok untuk semua mode
   if (!/^\d+$/.test(d.stock) || Number(d.stock) < 0) errs.stock = 'Isi stok dengan angka bulat, 0 atau lebih.';
   if (isRestock && Number(d.stock) < 1) errs.stock = 'Jumlah tambahan stok minimal 1.';
 
@@ -346,10 +343,10 @@ document.addEventListener('submit', async (ev) => {
   try {
     let payload = {};
     if (isRestock) {
-      if (!id) { 
+      if (!id) {
         btn.disabled = false; btn.textContent = label;
         $('#e-form').textContent = 'ID produk tidak ditemukan. Tutup modal lalu scan ulang.';
-        return; 
+        return;
       }
       payload = { action: 'restock', id: id, stock: Number(d.stock) };
     } else {
@@ -389,6 +386,9 @@ function confirmDelete(x) {
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-act]'); if (!b || !data) return;
   const act = b.dataset.act, x = data.items[+b.dataset.i];
+  if (act === 'add' || act === 'edit' || act === 'del') {
+    if (!CAN_EDIT) { toast('Anda tidak memiliki akses untuk mengubah produk.'); return; }
+  }
   if (act === 'pick') { $('#pf-file').click(); return; }
   if (act === 'unpick') { if (photo.url) URL.revokeObjectURL(photo.url); photo.blob = null; photo.url = null; photo.remove = !!photo.existing; renderPreview(); return; }
   if (act === 'scan') { startScan(); return; }

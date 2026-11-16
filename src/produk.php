@@ -1,6 +1,11 @@
 <?php
 require __DIR__ . '/includes/owner_layout.php';
 $u = owner_page_guard($pdo);
+if (!owner_can($u, 'produk')) {
+    header('Location: owner-dashboard.php');
+    exit;
+}
+$canEdit = owner_can($u, 'produk');
 owner_layout_start($u, 'produk', 'Produk & Stok', 'Kelola barang dagangan dan stok · ' . e($u['business_name']));
 ?>
       <div class="note-e" id="err" role="alert" hidden></div>
@@ -13,7 +18,10 @@ owner_layout_start($u, 'produk', 'Produk & Stok', 'Kelola barang dagangan dan st
       </section>
 
       <section class="card" aria-labelledby="h-list">
-        <div class="card-h"><h2 id="h-list">Daftar Produk</h2><button class="btn" type="button" id="add" data-act="add"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Tambah Produk</button></div>
+        <div class="card-h">
+          <h2 id="h-list">Daftar Produk</h2>
+          <?php if ($canEdit): ?><button class="btn" type="button" id="add" data-act="add"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>Tambah Produk</button><?php endif; ?>
+        </div>
         <div class="filters">
           <div class="sbox"><svg class="i" aria-hidden="true"><use href="#i-search"/></svg><input id="q" type="search" placeholder="Cari nama atau kode produk" aria-label="Cari produk" maxlength="60" autocomplete="off"></div>
           <select id="f-stok" aria-label="Filter stok"><option value="">Semua stok</option><option value="aman">Stok aman</option><option value="menipis">Stok menipis</option><option value="habis">Stok habis</option></select>

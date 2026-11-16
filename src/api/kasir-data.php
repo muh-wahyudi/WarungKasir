@@ -1,12 +1,10 @@
 <?php
-// API Kasir: daftar produk, checkout, dan QRIS Midtrans.
 require __DIR__ . '/../includes/owner.php';
 require __DIR__ . '/../includes/payments.php';
 
 const KASIR_PRODUK_LIMIT = 20;
 const KASIR_MAX_ITEMS = 100;
 
-/* ---------- Daftar produk untuk kasir ---------- */
 function kasir_produk(PDO $pdo, int $uid): void {
     $q = is_string($_GET['q'] ?? null) ? mb_substr(trim($_GET['q']), 0, 60) : '';
     $where = 'owner_id = ? AND is_active = 1 AND stock > 0';
@@ -30,8 +28,7 @@ function kasir_produk(PDO $pdo, int $uid): void {
     ]);
 }
 
-/* ---------- Checkout transaksi ---------- */
-function kasir_checkout(PDO $pdo, int $uid, array $b): void {
+function kasir_checkout(PDO $pdo, int $uid, int $actorId, array $b): void {
     $method = in_array($b['method'] ?? '', ['Tunai', 'QRIS'], true) ? $b['method'] : null;
     if (!$method) json_out(400, ['message' => 'Metode bayar tidak valid.']);
 
@@ -75,13 +72,12 @@ function kasir_checkout(PDO $pdo, int $uid, array $b): void {
         if ($total <= 0) { $pdo->rollBack(); json_out(400, ['message' => 'Total transaksi kosong.']); }
         if ($method === 'Tunai' && $cash < $total) { $pdo->rollBack(); json_out(400, ['message' => 'Uang pelanggan kurang dari total.']); }
 
-        // Kode transaksi berurutan per pemilik
         $last = db_one($pdo, "SELECT code FROM transactions WHERE owner_id = ? ORDER BY id DESC LIMIT 1", [$uid]);
         $n = $last ? ((int) substr($last['code'], 4)) + 1 : 1;
         $code = 'TRX-' . str_pad((string) $n, 5, '0', STR_PAD_LEFT);
 
-        $pdo->prepare('INSERT INTO transactions (owner_id, code, customer_name, total, payment_method, status) VALUES (?, ?, ?, ?, ?, ?)')
-            ->execute([$uid, $code, $cust, $total, $method, $method === 'QRIS' ? 'Menunggu' : 'Selesai']);
+        $pdo->prepare('INSERT INTO transactions (owner_id, created_by, code, customer_name, total, payment_method, status) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            ->execute([$uid, $actorId, $code, $cust, $total, $method, $method === 'QRIS' ? 'Menunggu' : 'Selesai']);
         $trxId = (int) $pdo->lastInsertId();
 
         $ins = $pdo->prepare('INSERT INTO transaction_items (transaction_id, product_id, product_name, qty, unit_price) VALUES (?, ?, ?, ?, ?)');
@@ -91,7 +87,6 @@ function kasir_checkout(PDO $pdo, int $uid, array $b): void {
             $upd->execute([$l['qty'], $l['id'], $uid]);
         }
 
-        // QRIS: buat pesanan Midtrans
         $orderId = null;
         if ($method === 'QRIS') {
             $orderId = 'WK-' . $uid . '-' . $trxId . '-' . time();
@@ -126,7 +121,6 @@ function kasir_checkout(PDO $pdo, int $uid, array $b): void {
     }
 }
 
-/* ---------- QRIS: buat QR ---------- */
 function kasir_create_payment(PDO $pdo, int $uid, array $b): void {
     $orderId = clean($b['order_id'] ?? '');
     $trx = $orderId === '' ? null : pay_find_by_order($pdo, $uid, $orderId);
@@ -136,12 +130,10 @@ function kasir_create_payment(PDO $pdo, int $uid, array $b): void {
         $r = midtrans_get_status($orderId);
         if (!$r) throw new Exception('Tidak dapat menghubungi Midtrans.');
 
-        // Charge ulang hanya jika Midtrans memastikan order belum ada.
         if ((string) ($r['status_code'] ?? '') === '404') {
             $r = midtrans_charge_qris($orderId, (int) $trx['total']);
         }
 
-        // Respons status Midtrans tidak memuat "actions"; URL QR dibentuk dari transaction_id.
         $qr = $r['actions'][0]['url'] ?? null;
         if (!$qr && !empty($r['transaction_id'])) {
             $qr = MIDTRANS_STATUS_URL . 'qris/' . rawurlencode($r['transaction_id']) . '/qr-code';
@@ -154,7 +146,6 @@ function kasir_create_payment(PDO $pdo, int $uid, array $b): void {
     }
 }
 
-/* ---------- QRIS: cek status ---------- */
 function kasir_check_status(PDO $pdo, int $uid, array $b): void {
     $orderId = clean($b['order_id'] ?? '');
     $trx = $orderId === '' ? null : pay_find_by_order($pdo, $uid, $orderId);
@@ -164,7 +155,6 @@ function kasir_check_status(PDO $pdo, int $uid, array $b): void {
     json_out(200, ['status' => $st, 'code' => $code]);
 }
 
-/* ---------- QRIS: batalkan ---------- */
 function kasir_cancel_payment(PDO $pdo, int $uid, array $b): void {
     $orderId = clean($b['order_id'] ?? '');
     $trx = $orderId === '' ? null : pay_find_by_order($pdo, $uid, $orderId);
@@ -173,9 +163,10 @@ function kasir_cancel_payment(PDO $pdo, int $uid, array $b): void {
     json_out(200, ['status' => $r['status'], 'message' => $r['message'], 'code' => $trx['code']]);
 }
 
-/* ---------- Router ---------- */
 try {
-    $uid = owner_api_guard($pdo);
+    $me = owner_api_guard($pdo);
+    owner_require($me, 'kasir');
+    $uid = (int) $me['owner_id'];
     $m = $_SERVER['REQUEST_METHOD'] ?? '';
 
     if ($m === 'GET') kasir_produk($pdo, $uid);
@@ -183,7 +174,7 @@ try {
 
     $b = read_post_json();
     $action = is_string($b['action'] ?? null) ? $b['action'] : '';
-    if ($action === 'checkout')       kasir_checkout($pdo, $uid, $b);
+    if ($action === 'checkout')       kasir_checkout($pdo, $uid, (int) $me['id'], $b);
     if ($action === 'create_payment') kasir_create_payment($pdo, $uid, $b);
     if ($action === 'check_status')   kasir_check_status($pdo, $uid, $b);
     if ($action === 'cancel_payment') kasir_cancel_payment($pdo, $uid, $b);

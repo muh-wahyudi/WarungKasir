@@ -1,6 +1,10 @@
 <?php
 require __DIR__ . '/includes/owner_layout.php';
 $u = owner_page_guard($pdo);
+if (!owner_can($u, 'saldo')) {
+    header('Location: owner-dashboard.php');
+    exit;
+}
 owner_layout_start($u, 'saldo', 'Saldo & Withdrawal', 'Kelola saldo dan pencairan dana · ' . e($u['business_name']));
 ?>
       <style>
@@ -39,7 +43,6 @@ owner_layout_start($u, 'saldo', 'Saldo & Withdrawal', 'Kelola saldo dan pencaira
         </div>
       </div>
 
-      <!-- Saldo & Withdrawal -->
       <section id="v-saldo" aria-label="Saldo dan withdrawal">
         <div class="stats" id="stats"><div class="card stat sk"></div><div class="card stat sk"></div><div class="card stat sk"></div><div class="card stat sk"></div></div>
         <div class="row2">
@@ -58,7 +61,6 @@ owner_layout_start($u, 'saldo', 'Saldo & Withdrawal', 'Kelola saldo dan pencaira
         </div>
       </section>
 
-      <!-- Riwayat saldo -->
       <section id="v-riwayat" aria-label="Riwayat saldo" hidden>
         <div class="sec-h">
           <div class="seg sm" id="subtabs" role="group" aria-label="Jenis riwayat">
@@ -87,7 +89,6 @@ owner_layout_start($u, 'saldo', 'Saldo & Withdrawal', 'Kelola saldo dan pencaira
         </section>
       </section>
 
-      <!-- Rekening bank -->
       <section id="v-rekening" aria-label="Rekening bank" hidden>
         <section class="card">
           <div class="card-h"><h2>Rekening Pencairan</h2><button class="btn" type="button" id="add-bank">Tambah Rekening</button></div>

@@ -1,6 +1,10 @@
 <?php
 require __DIR__ . '/includes/owner_layout.php';
 $u = owner_page_guard($pdo);
+if (!owner_can($u, 'dashboard')) {
+    header('Location: kasir.php');
+    exit;
+}
 owner_layout_start($u, 'dashboard', 'Dashboard', 'Selamat datang kembali, <b>' . e(owner_first_name($u)) . '</b>! · ' . e($u['business_name']));
 ?>
       <div class="note-e" id="err" role="alert" hidden></div>

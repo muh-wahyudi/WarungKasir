@@ -41,6 +41,7 @@ $wk = json_encode(['master' => $isMaster, 'name' => $u['full_name'], 'email' => 
   <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 12.5l9 5 9-5"/><path d="M3 17l9 5 9-5"/></symbol>
 </defs></svg>
 
 <div class="shell">
@@ -56,6 +57,8 @@ $wk = json_encode(['master' => $isMaster, 'name' => $u['full_name'], 'email' => 
       <a href="#subs" data-go="subs"><svg class="i" aria-hidden="true"><use href="#i-repeat"/></svg>Langganan</a>
       <a href="#pay" data-go="pay"><svg class="i" aria-hidden="true"><use href="#i-card"/></svg>Pembayaran</a>
       <a href="admin-wallet.php"><svg class="i" aria-hidden="true"><use href="#i-card"/></svg>Wallet &amp; Withdrawal</a>
+      <a href="admin-artikel.php"><svg class="i" aria-hidden="true"><use href="#i-box"/></svg>Artikel</a>
+      <a href="admin-kategori.php"><svg class="i" aria-hidden="true"><use href="#i-layers"/></svg>Kategori Artikel</a>
       <a href="#plans" data-go="plans"><svg class="i" aria-hidden="true"><use href="#i-box"/></svg>Paket</a>
       <a href="#support" data-go="support"><svg class="i" aria-hidden="true"><use href="#i-chat"/></svg>Dukungan Pelanggan</a>
       <a href="#settings" data-go="settings"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg>Pengaturan Platform</a>

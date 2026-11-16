@@ -1,4 +1,3 @@
-// Admin: Withdrawal, verifikasi rekening, saldo warung, pengaturan wallet, audit log. Data lewat api/admin-wallet-data.php.
 (() => {
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -16,7 +15,6 @@ const BANK_BADGE = { pending: ['Menunggu verifikasi', 'w'], verified: ['Terverif
 
 let tab = 'wd', wdItems = [], bankItems = [], walItems = [], settings = null;
 
-/* ---------- Dasar: dialog, toast, jaringan ---------- */
 const dlg = $('#dlg');
 const modal = (title, html) => { $('#dlg-t').textContent = title; $('#dlg-b').innerHTML = html; if (!dlg.open) dlg.showModal(); };
 const closeModal = () => { if (dlg.open) dlg.close(); };
@@ -38,25 +36,23 @@ async function post(body, isForm) {
     body: isForm ? body : JSON.stringify(body),
   });
   let j = {};
-  try { j = await r.json(); } catch (e) { /* bukan JSON */ }
+  try { j = await r.json(); } catch (e) { }
   if (r.status === 401) location.href = 'login.html';
   return { ok: r.ok, status: r.status, body: j };
 }
-// Tampilkan galat server pada elemen #e-<kolom> / #e-form di dalam dialog
 function showErrors(body, root = document) {
   const errs = body.errors || {};
   Object.keys(errs).forEach((k) => { const b = $('#e-' + k, root), i = root.querySelector ? root.querySelector(`[name="${k}"]`) : null; if (b) b.textContent = errs[k]; if (i) i.setAttribute('aria-invalid', 'true'); });
   if (!Object.keys(errs).length) { const f = $('#e-form', root); if (f) f.textContent = body.message || 'Gagal memproses.'; }
 }
 function clearErrors(root) { $$('.ferr', root).forEach((e) => { e.textContent = ''; }); $$('[aria-invalid]', root).forEach((e) => e.removeAttribute('aria-invalid')); }
-async function guarded(btn, fn) {   // cegah klik ganda
+async function guarded(btn, fn) {
   if (btn.disabled) return;
   btn.disabled = true; const lbl = btn.textContent;
   try { await fn(); } catch (e) { const f = $('#e-form'); if (f) f.textContent = 'Tidak dapat terhubung ke server.'; }
   btn.disabled = false; btn.textContent = lbl;
 }
 
-/* ---------- Ringkasan ---------- */
 async function loadSummary() {
   const s = await get('summary');
   const c = s.wd_counts || {};
@@ -69,7 +65,6 @@ async function loadSummary() {
   return s;
 }
 
-/* ---------- Withdrawal ---------- */
 async function loadWd() {
   const st = $('#f-wd').value;
   const d = await get('withdrawals', st ? '&status=' + encodeURIComponent(st) : '');
@@ -142,7 +137,6 @@ async function wdAction(btn, id, act, extra = {}) {
   });
 }
 
-/* ---------- Rekening bank ---------- */
 async function loadBank() {
   const st = $('#f-bank').value;
   const d = await get('banks', st ? '&status=' + encodeURIComponent(st) : '');
@@ -170,7 +164,6 @@ function openBank(id, act) {
   }
 }
 
-/* ---------- Saldo warung ---------- */
 async function loadWallets(sum) {
   const s = sum || await get('summary');
   const d = await get('wallets');
@@ -185,22 +178,23 @@ async function loadWallets(sum) {
   $('#wal-tbl').innerHTML = walItems.length ? walItems.map((w) => `<tr class="nolink"><td data-label="Warung"><b>${esc(w.business)}</b><br><span class="mut">${esc(w.owner)}</span></td>
     <td data-label="Pending" class="num">${rp(w.pending)}</td><td data-label="Tersedia" class="num"><b>${rp(w.available)}</b></td><td data-label="Diproses" class="num">${rp(w.processing)}</td>
     <td data-label="Total Dicairkan" class="num">${rp(w.withdrawn)}</td><td data-label="Biaya QRIS" class="num">${rp(w.fees)}</td>
-    <td data-label="Aksi">${MASTER ? `<div class="acts"><button class="link" type="button" data-pending="${w.id}">Saldo Pending</button><button class="link" type="button" data-adjust="${w.id}">Sesuaikan</button></div>` : '<span class="mut">Master</span>'}</td></tr>`).join('')
+    <td data-label="Aksi">${MASTER ? `<div class="acts"><button class="link" type="button" data-pending="${w.id}">Saldo Pending</button><button class="link danger" type="button" data-adjust="${w.id}" title="Hanya untuk koreksi darurat">⚠ Sesuaikan</button></div>` : '<span class="mut">Master</span>'}</td></tr>`).join('')
     : '<tr><td colspan="7" class="empty">Belum ada wallet.</td></tr>';
 }
 
 function openAdjust(id) {
   const w = walItems.find((x) => x.id === id); if (!w) return;
+  if (!confirm(`⚠️ PERINGATAN\n\nPenyesuaian saldo akan mengubah saldo warung secara PERMANEN. Tindakan ini tercatat di audit log dan TIDAK BISA DIBATALKAN.\n\nGunakan HANYA untuk koreksi darurat (refund gagal, kompensasi bug, salah input).\n\nSaldo saat ini:\n• Tersedia: ${rp(w.available)}\n• Pending: ${rp(w.pending)}\n\nLanjutkan?`)) return;
   modal('Penyesuaian Saldo', `
     <form id="adj-form" data-id="${id}" data-key="${uuid()}" novalidate>
       <div class="dl"><span>Warung</span><b>${esc(w.business)}</b></div>
       <div class="dl"><span>Tersedia / Pending</span><span>${rp(w.available)} / ${rp(w.pending)}</span></div>
-      <div class="lock" style="margin:12px 0">Penyesuaian berlaku <b>langsung</b> dan tercatat permanen di ledger dan audit log atas nama Anda. Gunakan hanya untuk koreksi yang jelas dasarnya. <b>Jangan dipakai untuk memindahkan saldo Pending ke Tersedia</b>; untuk itu gunakan tombol “Saldo Pending” → “Lepas sekarang”.</div>
       <div class="fld"><label for="adj-bucket">Saldo yang disesuaikan</label><select id="adj-bucket" name="bucket"><option value="available">Tersedia</option><option value="pending">Pending</option></select></div>
       <div class="fld"><label for="adj-delta">Nominal (Rp)</label><input id="adj-delta" name="delta" inputmode="numeric" autocomplete="off" placeholder="contoh 50000 atau -50000"><p class="hint">Tanda minus (−) untuk mengurangi saldo.</p><p class="ferr" id="e-delta"></p></div>
-      <div class="fld"><label for="adj-reason">Alasan (wajib)</label><textarea id="adj-reason" name="reason" maxlength="255"></textarea><p class="ferr" id="e-reason"></p></div>
+      <div class="fld"><label for="adj-reason">Alasan (wajib, min 20 karakter)</label><textarea id="adj-reason" name="reason" maxlength="255"></textarea><p class="ferr" id="e-reason"></p></div>
+      <div class="fld"><label for="adj-confirm">Ketik <b>YA</b> untuk konfirmasi</label><input id="adj-confirm" name="confirm" maxlength="2" autocomplete="off" placeholder="YA"><p class="ferr" id="e-confirm"></p></div>
       <p class="ferr" id="e-form"></p>
-      <div class="modal-f"><button class="btn line" type="button" data-act="close">Batal</button><button class="btn" type="submit">Catat Penyesuaian</button></div>
+      <div class="modal-f"><button class="btn line" type="button" data-act="close">Batal</button><button class="btn danger" type="submit">Catat Penyesuaian</button></div>
     </form>`);
 }
 
@@ -223,15 +217,18 @@ async function openPending(ownerId) {
     <div class="modal-f"><button class="btn line" type="button" data-act="close">Tutup</button></div></div>`);
 }
 
-/* ---------- Pengaturan ---------- */
 const SET_HINT = {
-  mdr_bps: 'Dalam bps: 70 = 0,70%. Sesuaikan dengan ketentuan Midtrans untuk akun Anda.',
-  mdr_tax_bps: 'Dalam bps: 1100 = 11%. Pajak dikenakan atas nilai MDR.',
+  mdr_bps: 'Sesuaikan dengan ketentuan Midtrans.',
+  mdr_tax_bps: 'Pajak dikenakan atas nilai MDR.',
   settlement_delay_days: 'Jumlah hari kerja sebelum saldo pending menjadi tersedia.',
   min_withdrawal: 'Nominal minimum satu pengajuan (Rp).',
   withdrawal_fee_flat: 'Biaya transfer per withdrawal (Rp), dipotong dari dana yang diterima warung.',
   max_open_withdrawals: 'Jumlah pengajuan yang boleh terbuka bersamaan untuk satu warung.',
 };
+const PCT_FIELDS = ['mdr_bps', 'mdr_tax_bps'];
+const toPct = (bps) => (Number(bps) / 100).toFixed(2).replace('.', ',');
+const toBps = (pct) => Math.round(Number(String(pct).replace(',', '.')) * 100);
+
 async function loadSettings() {
   settings = await get('settings');
   $('#devkey').hidden = !settings.key_dev;
@@ -239,10 +236,18 @@ async function loadSettings() {
   $('#set-form').innerHTML = `
     ${MASTER ? '' : '<div class="lock" style="margin-bottom:14px"><b>Akses dibatasi.</b> Hanya master admin yang dapat mengubah pengaturan wallet.</div>'}
     <div class="set-grid">
-      ${settings.items.map((s) => `<div class="fld"><label for="st-${s.key}">${esc(s.label)}</label>
-        <input id="st-${s.key}" name="${s.key}" inputmode="numeric" value="${esc(s.value)}"${dis} autocomplete="off">
-        <p class="hint">${esc(SET_HINT[s.key] || '')}${s.key === 'mdr_bps' || s.key === 'mdr_tax_bps' ? ` <b data-pct="${s.key}">= ${(s.value / 100).toLocaleString('id-ID')}%</b>` : ''}</p>
-        <p class="ferr" id="e-${s.key}"></p></div>`).join('')}
+      ${settings.items.map((s) => {
+        const isPct = PCT_FIELDS.includes(s.key);
+        const val = isPct ? toPct(s.value) : s.value;
+        const suffix = isPct ? '%' : '';
+        return `<div class="fld"><label for="st-${s.key}">${esc(s.label)}</label>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <input id="st-${s.key}" name="${s.key}" inputmode="decimal" value="${esc(val)}"${dis} autocomplete="off" style="flex:1;">
+            ${isPct ? `<span class="mut" style="font-weight:600;">${suffix}</span>` : ''}
+          </div>
+          <p class="hint">${esc(SET_HINT[s.key] || '')}</p>
+          <p class="ferr" id="e-${s.key}"></p></div>`;
+      }).join('')}
       <div class="fld" style="grid-column:1/-1"><label for="st-start">Wallet aktif sejak</label>
         <input id="st-start" name="wallet_start_at" value="${esc(settings.wallet_start_at)}" placeholder="2026-11-07 00:00:00"${dis} autocomplete="off">
         <p class="hint">Kosong = wallet belum aktif (tidak ada pembayaran yang dicatat). Hanya pembayaran QRIS <b>setelah</b> waktu ini yang masuk saldo. Format YYYY-MM-DD JJ:MM:DD.</p><p class="ferr" id="e-wallet_start_at"></p></div>
@@ -254,10 +259,15 @@ async function loadSettings() {
 
 function collectSettings() {
   const f = $('#set-form'), o = {};
-  settings.items.forEach((s) => { o[s.key] = f.elements[s.key].value.trim(); });
+  settings.items.forEach((s) => {
+    let v = f.elements[s.key].value.trim();
+    if (PCT_FIELDS.includes(s.key)) v = String(toBps(v));
+    o[s.key] = v;
+  });
   o.wallet_start_at = f.elements.wallet_start_at.value.trim();
   return o;
 }
+
 async function saveSettings(btn) {
   const f = $('#set-form'); clearErrors(f);
   await guarded(btn, async () => {
@@ -269,15 +279,17 @@ async function saveSettings(btn) {
   });
 }
 
-/* ---------- Audit ---------- */
 async function loadAudit() {
   const d = await get('audit');
-  $('#aud-tbl').innerHTML = d.items.length ? d.items.map((a) => `<tr class="nolink"><td data-label="Waktu">${esc(fmtDT(a.time))}</td><td data-label="Admin">${esc(a.admin)}</td>
-    <td data-label="Aksi"><b>${esc(a.action)}</b></td><td data-label="Objek">${esc(a.entity)}</td><td data-label="Alasan">${esc(a.reason || '-')}</td>
-    <td data-label="Detail"><div class="pre">${esc(a.detail || '')}</div></td></tr>`).join('') : '<tr><td colspan="6" class="empty">Belum ada aktivitas admin.</td></tr>';
+  $('#aud-tbl').innerHTML = d.items.length ? d.items.map((a) => `<tr class="nolink">
+    <td data-label="Waktu">${esc(fmtDT(a.time))}</td>
+    <td data-label="Admin">${esc(a.admin)}</td>
+    <td data-label="Aksi"><b>${esc(a.action)}</b></td>
+    <td data-label="Objek">${esc(a.entity)}</td>
+    <td data-label="Alasan">${esc(a.reason || '-')}</td>
+  </tr>`).join('') : '<tr><td colspan="5" class="empty">Belum ada aktivitas admin.</td></tr>';
 }
 
-/* ---------- Tab & muat ulang ---------- */
 const LOAD = { wd: loadWd, bank: loadBank, wallet: () => loadWallets(), set: loadSettings, audit: loadAudit };
 async function showTab(t) {
   tab = t;
@@ -286,9 +298,8 @@ async function showTab(t) {
   try { await LOAD[t](); } catch (e) { $('#err').hidden = false; $('#err').textContent = 'Data belum dapat dimuat. Muat ulang halaman.'; return; }
   $('#err').hidden = true;
 }
-async function refresh() { try { await Promise.all([loadSummary(), LOAD[tab]()]); } catch (e) { /* tampilan tetap */ } }
+async function refresh() { try { await Promise.all([loadSummary(), LOAD[tab]()]); } catch (e) { } }
 
-/* ---------- Interaksi ---------- */
 document.addEventListener('click', async (e) => {
   const t = e.target;
   if (t.closest('[data-act="close"]')) { closeModal(); return; }
@@ -310,6 +321,7 @@ document.addEventListener('click', async (e) => {
     clearErrors($('#dlg-b'));
     const file = $('#wd-proof').files[0];
     if (!file) { $('#e-proof').textContent = 'Pilih file bukti transfer.'; return; }
+    if (file.size > 3 * 1024 * 1024) { $('#e-proof').textContent = 'Ukuran file maksimal 3 MB.'; return; }
     await guarded(up, async () => {
       up.textContent = 'Mengunggah…';
       const fd = new FormData(); fd.append('action', 'upload_proof'); fd.append('id', up.dataset.wupload); fd.append('proof', file);
@@ -358,7 +370,6 @@ document.addEventListener('click', async (e) => {
 document.addEventListener('keydown', (e) => {
   const r = e.target.closest && e.target.closest('tr[data-wd]');
   if (r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openWd(+r.dataset.wd); }
-  if (e.key === 'Escape') { openSide(false); openDd(false); }
 });
 
 document.addEventListener('submit', async (e) => {
@@ -369,10 +380,21 @@ document.addEventListener('submit', async (e) => {
   }
   if (f.id === 'adj-form') {
     e.preventDefault(); clearErrors(f);
+    if (f.elements.confirm.value.trim().toUpperCase() !== 'YA') {
+      $('#e-confirm').textContent = 'Ketik "YA" untuk konfirmasi.';
+      f.elements.confirm.focus();
+      return;
+    }
+    const reason = f.elements.reason.value.trim();
+    if (reason.length < 20) {
+      $('#e-reason').textContent = 'Alasan wajib diisi minimal 20 karakter.';
+      f.elements.reason.focus();
+      return;
+    }
     const btn = f.querySelector('button[type=submit]');
     await guarded(btn, async () => {
       btn.textContent = 'Mencatat…';
-      const { ok, body } = await post({ action: 'adjust', owner_id: +f.dataset.id, bucket: f.elements.bucket.value, delta: f.elements.delta.value.replace(/\s/g, '').replace('−', '-'), reason: f.elements.reason.value, request_key: f.dataset.key });
+      const { ok, body } = await post({ action: 'adjust', owner_id: +f.dataset.id, bucket: f.elements.bucket.value, delta: f.elements.delta.value.replace(/\s/g, '').replace('−', '-'), reason, request_key: f.dataset.key });
       if (ok) { closeModal(); toast(body.message || 'Tercatat.'); await refresh(); return; }
       showErrors(body, f);
     });
@@ -391,30 +413,9 @@ document.addEventListener('submit', async (e) => {
   }
 });
 
-document.addEventListener('input', (e) => {
-  if (e.target.name === 'mdr_bps' || e.target.name === 'mdr_tax_bps') {
-    const el = $(`[data-pct="${e.target.name}"]`); const v = parseInt(e.target.value, 10);
-    if (el) el.textContent = Number.isFinite(v) ? '= ' + (v / 100).toLocaleString('id-ID') + '%' : '';
-  }
-});
 $('#f-wd').addEventListener('change', () => loadWd().catch(() => {}));
 $('#f-bank').addEventListener('change', () => loadBank().catch(() => {}));
 
-/* ---------- Menu samping, menu akun, keluar ---------- */
-const side = $('#side'), scrim = $('#scrim'), dd = $('#dd'), who = $('#who');
-function openSide(on) { side.classList.toggle('open', on); scrim.classList.toggle('on', on); $('#open-side').setAttribute('aria-expanded', on); }
-function openDd(on) { dd.hidden = !on; who.setAttribute('aria-expanded', on); }
-$('#open-side').addEventListener('click', () => openSide(true));
-$('#close-side').addEventListener('click', () => openSide(false));
-scrim.addEventListener('click', () => openSide(false));
-who.addEventListener('click', (e) => { e.stopPropagation(); openDd(dd.hidden); });
-document.addEventListener('click', (e) => { if (!dd.contains(e.target)) openDd(false); });
-$('#logout').addEventListener('click', (e) => {
-  e.preventDefault();
-  fetch('api/logout.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', credentials: 'same-origin' })
-    .catch(() => {}).finally(() => { location.href = 'login.html'; });
-});
-
-setInterval(() => { if (document.visibilityState === 'visible' && !dlg.open && tab !== 'set') refresh(); }, 30000);
+setInterval(() => { if (document.visibilityState === 'visible' && !dlg.open && tab !== 'set' && tab !== 'audit') refresh(); }, 30000);
 (async () => { try { await loadSummary(); } catch (e) { $('#err').hidden = false; $('#err').textContent = 'Data belum dapat dimuat. Muat ulang halaman.'; return; } showTab('wd'); })();
 })();

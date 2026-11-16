@@ -120,7 +120,7 @@ function handle_subscription(PDO $pdo, int $uid, array $b): void {
 
     if ($action === 'checkout') {
         $planCode = clean($b['plan_code'] ?? '');
-        $plan = db_one($pdo, 'SELECT id, name, price_monthly FROM plans WHERE code = ? AND price_monthly > 0 LIMIT 1', [$planCode]);
+        $plan = db_one($pdo, 'SELECT id, name, price_monthly FROM plans WHERE code = ? AND price_monthly > 0 AND is_active = 1 LIMIT 1', [$planCode]);
         if (!$plan) json_out(400, ['message' => 'Paket tidak valid atau gratis.']);
         $planId = (int) $plan['id'];
 
@@ -205,12 +205,25 @@ function handle_subscription(PDO $pdo, int $uid, array $b): void {
             throw $e;
         }
 
-        json_out(200, ['status' => 'active', 'message' => 'Pembayaran diterima. Paket berhasil diaktifkan.']);
+        $enforce = null;
+        try {
+            $enforce = owner_team_enforce_limit($pdo, $uid);
+        } catch (Throwable $e) {
+            error_log('[pengaturan] enforce_team_limit: ' . $e->getMessage());
+        }
+
+        $msg = 'Pembayaran diterima. Paket berhasil diaktifkan.';
+        if ($enforce && $enforce['disabled'] > 0) {
+            $msg .= ' ' . $enforce['disabled'] . ' staf dinonaktifkan karena melebihi batas paket baru.';
+        }
+        json_out(200, ['status' => 'active', 'message' => $msg]);
     }
 }
 
 try {
-    $uid = owner_api_guard($pdo);
+    $me = owner_api_guard($pdo);
+    $uid = (int) $me['owner_id'];
+    owner_require($me, 'pengaturan');
     $method = $_SERVER['REQUEST_METHOD'] ?? '';
     if ($method === 'GET') json_out(200, account_data($pdo, $uid));
     if ($method !== 'POST') json_out(405, ['message' => 'Metode tidak diizinkan.']);

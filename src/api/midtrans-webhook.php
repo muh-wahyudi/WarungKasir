@@ -1,15 +1,6 @@
 <?php
-// Penerima notifikasi pembayaran Midtrans (Payment Notification URL).
-// Alamat ini harus bisa dibuka publik tanpa login, dan diisi di Midtrans Dashboard:
-//   Settings > Configuration > Payment Notification URL  ->  https://DOMAIN-ANDA/api/midtrans-webhook.php
-//
-// Keamanan:
-//  1. Signature SHA-512 diverifikasi (order_id + status_code + gross_amount + server key).
-//  2. Status TIDAK dipercaya dari isi notifikasi: dicek ulang langsung ke API Midtrans.
-//  3. Idempoten: notifikasi yang sama (event_key) dan operasi saldo yang sama tidak diproses dua kali.
-// Pesanan 'WK-' = pembayaran kasir (masuk wallet pemilik). Pesanan 'SUB-' = langganan (pendapatan platform).
 require __DIR__ . '/../includes/payments.php';
-if (function_exists('session_abort')) @session_abort();   // webhook tidak memakai sesi
+if (function_exists('session_abort')) @session_abort();
 
 function hook_subscription(PDO $pdo, string $order, array $mt): string {
     $s = db_one($pdo, 'SELECT s.id, s.user_id, s.status, p.price_monthly FROM subscriptions s
@@ -20,7 +11,7 @@ function hook_subscription(PDO $pdo, string $order, array $mt): string {
         if ((int) round((float) ($mt['gross_amount'] ?? 0)) !== (int) $s['price_monthly']) return 'needs_review_amount';
         if ($s['status'] === 'active') return 'already_active';
         if ($s['status'] !== 'pending_payment') return 'needs_review_paid_after_cancel';
-        return wallet_tx($pdo, function () use ($pdo, $s) {
+        $result = wallet_tx($pdo, function () use ($pdo, $s) {
             $u = $pdo->prepare("UPDATE subscriptions SET status = 'active', started_at = NOW(), ends_at = DATE_ADD(NOW(), INTERVAL 30 DAY)
                                 WHERE id = ? AND status = 'pending_payment'");
             $u->execute([(int) $s['id']]);
@@ -29,6 +20,11 @@ function hook_subscription(PDO $pdo, string $order, array $mt): string {
                 ->execute([(int) $s['user_id'], (int) $s['id']]);
             return 'activated';
         });
+        if ($result === 'activated') {
+            try { owner_team_enforce_limit($pdo, (int) $s['user_id']); }
+            catch (Throwable $e) { error_log('[webhook] enforce_team_limit: ' . $e->getMessage()); }
+        }
+        return $result;
     }
     if ($c === 'dead' && $s['status'] === 'pending_payment') {
         $pdo->prepare("UPDATE subscriptions SET status = 'canceled' WHERE id = ? AND status = 'pending_payment'")->execute([(int) $s['id']]);
@@ -51,9 +47,9 @@ function hook_kasir(PDO $pdo, string $order, array $mt): string {
     $c = pay_classify($mt);
     if ($c === 'paid') {
         if ((int) round((float) ($mt['gross_amount'] ?? 0)) !== (int) $t['total']) return 'needs_review_amount';
-        if ($t['status'] === 'Dibatalkan') return 'needs_review_paid_after_cancel';   // dana masuk setelah transaksi dibatalkan
+        if ($t['status'] === 'Dibatalkan') return 'needs_review_paid_after_cancel';
         if ($t['status'] === 'Menunggu') { pay_mark_paid($pdo, $uid, (int) $t['id'], $mt); return 'paid'; }
-        $r = wallet_credit_payment($pdo, (int) $t['id'], $mt);   // sudah Selesai: pastikan tercatat di wallet
+        $r = wallet_credit_payment($pdo, (int) $t['id'], $mt);
         return 'already_paid_' . $r['result'];
     }
     if ($c === 'dead') {
@@ -89,7 +85,6 @@ try {
     $ev = db_one($pdo, 'SELECT id, processed_at FROM midtrans_events WHERE event_key = ?', [$key]);
     if ($ev['processed_at'] !== null) json_out(200, ['ok' => true, 'result' => 'duplicate']);
 
-    // Status asli dari Midtrans (bukan dari isi notifikasi). Gagal menghubungi -> 503 agar Midtrans mengulang.
     $mt = midtrans_get_status($order);
     if (!$mt) json_out(503, ['message' => 'Midtrans belum dapat dihubungi.']);
 
@@ -102,5 +97,5 @@ try {
     json_out(200, ['ok' => true, 'result' => $result]);
 } catch (Throwable $e) {
     error_log('[webhook] ' . $e->getMessage());
-    json_out(500, ['message' => 'Terjadi kesalahan pada server.']);   // Midtrans akan mengulang pengiriman
+    json_out(500, ['message' => 'Terjadi kesalahan pada server.']);
 }

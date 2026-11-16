@@ -1,6 +1,10 @@
 <?php
 require __DIR__ . '/includes/owner_layout.php';
 $u = owner_page_guard($pdo);
+if (!owner_can($u, 'transaksi')) {
+    header('Location: owner-dashboard.php');
+    exit;
+}
 owner_layout_start($u, 'transaksi', 'Transaksi & Laporan', 'Riwayat penjualan dan laporan usaha · ' . e($u['business_name']));
 ?>
       <style>
@@ -67,7 +71,6 @@ owner_layout_start($u, 'transaksi', 'Transaksi & Laporan', 'Riwayat penjualan da
         <button class="link" type="button" id="pend-check">Periksa status</button>
       </div>
 
-      <!-- Riwayat transaksi -->
       <section id="v-riwayat" aria-label="Riwayat transaksi">
         <section class="card">
           <div class="filters">
@@ -90,7 +93,6 @@ owner_layout_start($u, 'transaksi', 'Transaksi & Laporan', 'Riwayat penjualan da
         </section>
       </section>
 
-      <!-- Laporan penjualan -->
       <section id="v-laporan" aria-label="Laporan penjualan" hidden>
         <div class="stats" id="rp-stats"></div>
         <p class="sub-n tx-cmp" id="rp-cmp"></p>

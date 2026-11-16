@@ -1,17 +1,17 @@
 <?php
-// Unggah foto produk (multipart: id + foto). Menimpa foto lama bila ada.
 require __DIR__ . '/../includes/owner.php';
 require __DIR__ . '/../includes/upload.php';
 
 $saved = null;
 try {
-    $uid = owner_api_guard($pdo);
+    $me = owner_api_guard($pdo);
+    owner_require($me, 'produk');
+    $uid = (int) $me['owner_id'];
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') json_out(405, ['message' => 'Metode tidak diizinkan.']);
     require_same_origin();
 
     $id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
     if ($id === false) {
-        // Isi permintaan melebihi post_max_size: PHP mengosongkan $_POST dan $_FILES.
         if (empty($_FILES) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) json_out(413, ['message' => 'Ukuran foto terlalu besar. Maksimal 2 MB.']);
         json_out(400, ['message' => 'Produk tidak valid.']);
     }
@@ -21,7 +21,7 @@ try {
 
     $saved = save_product_image($_FILES['foto'], $uid);
     $pdo->prepare('UPDATE products SET image = ? WHERE id = ? AND owner_id = ?')->execute([$saved, $id, $uid]);
-    delete_image_file($own['image']);   // foto lama dibuang setelah yang baru tersimpan
+    delete_image_file($own['image']);
     json_out(200, ['message' => 'Foto disimpan.', 'image' => 'uploads/' . $saved]);
 } catch (UploadError $ex) {
     json_out($ex->status, ['message' => $ex->getMessage()]);

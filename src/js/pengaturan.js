@@ -1,13 +1,27 @@
 (() => {
-const TABS = ['profil', 'usaha', 'keamanan', 'paket'];
-const BOX = { profil: '#v-profil', usaha: '#v-usaha', keamanan: '#v-keamanan', paket: '#v-paket' };
+const TABS = ['profil', 'usaha', 'keamanan', 'paket', 'staf'];
+const BOX = { profil: '#v-profil', usaha: '#v-usaha', keamanan: '#v-keamanan', paket: '#v-paket', staf: '#v-staf' };
+const HAS_STAFF = !!document.querySelector('[data-tab="staf"]');
+const HAS_PAKET = !!document.querySelector('[data-tab="paket"]');
+const CAN_CHANGE_EMAIL = !!document.querySelector('#btn-change-email');
+const STAFF_STATUS = {
+  active: ['Aktif', ''],
+  invited: ['Menunggu', 'w'],
+  disabled: ['Nonaktif', 'n'],
+};
+const STAFF_ROLE = { admin: 'Admin', kasir: 'Kasir' };
 let data = null;
 let tab = 'profil';
 let payInterval = null;
 let payOrderId = null;
 let emailChangeTarget = '';
 
-const tabFromHash = () => { const t = location.hash.replace('#', ''); return TABS.includes(t) ? t : 'profil'; };
+const validTabs = () => TABS.filter((t) => {
+  if (t === 'staf') return HAS_STAFF;
+  if (t === 'paket') return HAS_PAKET;
+  return true;
+});
+const tabFromHash = () => { const t = location.hash.replace('#', ''); return validTabs().includes(t) ? t : 'profil'; };
 const initials = (n) => n.trim().split(/\s+/).slice(0, 2).map((w) => (w[0] || '').toUpperCase()).join('');
 
 async function load() {
@@ -33,7 +47,7 @@ function fill() {
   $('#p-since').textContent = p.member_since ? 'Bergabung sejak ' + p.member_since : '';
   $('#b-name').value = b.business_name;
   $('#b-address').value = b.alamat || '';
-  renderPlan();
+  if (HAS_PAKET) renderPlan();
 }
 
 function features(p) {
@@ -239,7 +253,6 @@ $('#f-keamanan').addEventListener('submit', (e) => {
   });
 });
 
-/* ---------- Ganti Email ---------- */
 function openChangeEmailModal() {
   modal('Ganti Email', `
     <form id="email-change-form" novalidate>
@@ -328,6 +341,137 @@ document.addEventListener('submit', async (e) => {
   }
 });
 
+async function loadStaff() {
+  if (!HAS_STAFF) return;
+  const tbl = $('#staf-tbl');
+  if (!tbl) return;
+  try {
+    const r = await fetch('api/team-invite.php', { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
+    if (r.status === 401) { location.href = 'login.html'; return; }
+    if (r.status === 403) { tbl.innerHTML = '<tr><td colspan="6" class="empty">Anda tidak memiliki akses ke halaman ini.</td></tr>'; return; }
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    const items = j.items || [];
+
+    tbl.innerHTML = items.length ? items.map((it) => {
+      const st = STAFF_STATUS[it.status] || [it.status, ''];
+      return `<tr>
+        <td data-label="Nama">${esc(it.full_name)}</td>
+        <td data-label="Email">${esc(it.email)}</td>
+        <td data-label="Role">${STAFF_ROLE[it.role] || it.role}</td>
+        <td data-label="Status"><span class="badge ${st[1]}">${st[0]}</span></td>
+        <td data-label="Bergabung">${esc(it.joined_at || it.invited_at || '-')}</td>
+        <td data-label="Aksi"><div class="acts">
+          ${it.status === 'active' ? `<button class="link danger" data-staff="disable" data-id="${it.id}">Nonaktifkan</button>` : ''}
+          ${it.status === 'disabled' ? `<button class="link" data-staff="enable" data-id="${it.id}">Aktifkan</button>` : ''}
+          ${it.status === 'invited' ? `<button class="link" data-staff="resend" data-id="${it.id}">Kirim Ulang</button>` : ''}
+          <button class="link danger" data-staff="remove" data-id="${it.id}">Hapus</button>
+        </div></td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="6" class="empty">Belum ada staf. Klik "Tambah Staf" untuk mengundang.</td></tr>';
+
+    const limitEl = $('#staf-limit');
+    if (limitEl) {
+      limitEl.textContent = j.limit === null
+        ? `Paket ${j.plan} · staf tanpa batas (${j.used} terdaftar)`
+        : `Paket ${j.plan} · ${j.used} dari ${j.limit} staf terpakai`;
+    }
+    const addBtn = $('#btn-add-staff');
+    if (addBtn) {
+      addBtn.disabled = !j.can_add;
+      addBtn.title = j.can_add ? '' : 'Batas akun paket tercapai. Upgrade paket untuk menambah staf.';
+    }
+  } catch {
+    tbl.innerHTML = '<tr><td colspan="6" class="empty">Gagal memuat data staf. Coba muat ulang halaman.</td></tr>';
+  }
+}
+
+function openAddStaff() {
+  modal('Tambah Staf', `
+    <form id="staff-form" novalidate>
+      <p class="sub-n" style="margin-top:0">Undangan dikirim ke email staf. Link berlaku 72 jam. Staf akan membuat kata sandi sendiri saat menerima undangan.</p>
+      <div class="fld">
+        <label for="staff-email">Email staf</label>
+        <input id="staff-email" name="email" type="email" maxlength="190" autocomplete="off" placeholder="staf@email.com">
+        <p class="ferr" id="e-email"></p>
+      </div>
+      <div class="fld">
+        <label for="staff-role">Role</label>
+        <select id="staff-role" name="role">
+          <option value="kasir">Kasir — hanya akses kasir</option>
+          <option value="admin">Admin — kasir, produk, transaksi</option>
+        </select>
+        <p class="hint">Admin bisa kelola produk & lihat laporan. Kasir hanya bisa transaksi.</p>
+      </div>
+      <p class="ferr" id="e-form-staff"></p>
+      <div class="modal-f">
+        <button class="btn line" type="button" data-act="close">Batal</button>
+        <button class="btn" type="submit">Kirim Undangan</button>
+      </div>
+    </form>`);
+  $('#staff-email').focus();
+}
+
+document.addEventListener('submit', async (e) => {
+  if (e.target.id !== 'staff-form') return;
+  e.preventDefault();
+  const form = e.target;
+  $$('.ferr', form).forEach((el) => { el.textContent = ''; });
+  const btn = form.querySelector('button[type=submit]');
+  if (btn.disabled) return;
+  const email = form.email.value.trim();
+  if (!email) { $('#e-email').textContent = 'Email wajib diisi.'; return; }
+  btn.disabled = true; btn.textContent = 'Mengirim…';
+  try {
+    const { ok, body } = await postJSON('api/team-invite.php', { action: 'invite', email, role: form.role.value });
+    if (ok) {
+      closeModal();
+      toast(body.message || 'Undangan dikirim.');
+      if (body.link) {
+        modal('Link Undangan (Dev)', `
+          <p>Email gagal terkirim atau Anda dalam mode development. Salin link undangan berikut:</p>
+          <p style="word-break:break-all; background:var(--bg); padding:10px; border-radius:8px;"><a href="${esc(body.link)}" target="_blank">${esc(body.link)}</a></p>
+          <div class="modal-f"><button class="btn" type="button" data-act="close">Tutup</button></div>`);
+      }
+      loadStaff();
+      return;
+    }
+    const errs = body.errors || {};
+    Object.keys(errs).forEach((k) => { const b2 = $('#e-' + k); if (b2) b2.textContent = errs[k]; });
+    if (!Object.keys(errs).length) $('#e-form-staff').textContent = body.message || 'Gagal mengirim undangan.';
+  } catch {
+    $('#e-form-staff').textContent = 'Tidak dapat terhubung ke server.';
+  }
+  btn.disabled = false; btn.textContent = 'Kirim Undangan';
+});
+
+document.addEventListener('click', async (e) => {
+  if (e.target.closest('#btn-add-staff')) { openAddStaff(); return; }
+  const sb = e.target.closest('[data-staff]');
+  if (sb) {
+    const act = sb.dataset.staff, id = +sb.dataset.id;
+    if (act === 'remove' && !confirm('Hapus staf ini? Akun staf akan dihapus permanen dan tidak bisa login lagi.')) return;
+    sb.disabled = true;
+    try {
+      const { ok, body } = await postJSON('api/team-invite.php', { action: act, id });
+      if (ok) {
+        toast(body.message || 'Berhasil.');
+        if (body.link) {
+          modal('Link Undangan', `
+            <p style="word-break:break-all; background:var(--bg); padding:10px; border-radius:8px;"><a href="${esc(body.link)}" target="_blank">${esc(body.link)}</a></p>
+            <div class="modal-f"><button class="btn" type="button" data-act="close">Tutup</button></div>`);
+        }
+        loadStaff();
+        return;
+      }
+      toast(body.message || 'Gagal.');
+    } catch {
+      toast('Tidak dapat terhubung ke server.');
+    }
+    sb.disabled = false;
+  }
+});
+
 document.addEventListener('click', (e) => {
   const payBtn = e.target.closest('[data-pay]');
   if (payBtn) {
@@ -357,8 +501,9 @@ document.addEventListener('click', (e) => {
 function setTab(t, writeHash) {
   tab = t;
   $$('[data-tab]').forEach((b) => { const on = b.dataset.tab === t; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
-  TABS.forEach((k) => { $(BOX[k]).hidden = k !== t; });
+  TABS.forEach((k) => { const el = $(BOX[k]); if (el) el.hidden = k !== t; });
   if (writeHash) { try { history.replaceState(null, '', '#' + t); } catch (e) { } }
+  if (t === 'staf') loadStaff();
 }
 
 $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-tab]'); if (b && b.dataset.tab !== tab) setTab(b.dataset.tab, true); });

@@ -1,5 +1,4 @@
 <?php
-// API Saldo & Withdrawal untuk pemilik warung. Semua data dibatasi ke akun yang login (owner_id dari sesi).
 require __DIR__ . '/../includes/withdrawal.php';
 
 const SALDO_PAGE = 30;
@@ -78,7 +77,9 @@ function saldo_overview(PDO $pdo, int $uid): array {
 }
 
 try {
-    $uid = owner_api_guard($pdo);
+    $me = owner_api_guard($pdo);
+    $uid = (int) $me['owner_id'];
+    owner_require($me, 'saldo');
     $m = $_SERVER['REQUEST_METHOD'] ?? '';
 
     if ($m === 'GET') {

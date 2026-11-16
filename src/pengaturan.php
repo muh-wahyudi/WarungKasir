@@ -1,6 +1,11 @@
 <?php
 require __DIR__ . '/includes/owner_layout.php';
 $u = owner_page_guard($pdo);
+if (!owner_can($u, 'pengaturan')) {
+    header('Location: owner-dashboard.php');
+    exit;
+}
+$isOwner = ($u['team_role'] ?? 'owner') === 'owner';
 owner_layout_start($u, 'pengaturan', 'Pengaturan', 'Kelola akun, usaha, dan paket · ' . e($u['business_name']));
 ?>
       <style>
@@ -29,6 +34,7 @@ owner_layout_start($u, 'pengaturan', 'Pengaturan', 'Kelola akun, usaha, dan pake
         .email-row { display: flex; gap: 8px; align-items: stretch; }
         .email-row input { flex: 1; }
         .email-row .btn { white-space: nowrap; }
+        .acts { display: flex; gap: 8px; flex-wrap: wrap; }
         @media (max-width: 900px) { .pl-grid { grid-template-columns: 1fr; } }
         @media (max-width: 720px) {
           .st-bar { flex-direction: column; align-items: stretch; }
@@ -47,22 +53,23 @@ owner_layout_start($u, 'pengaturan', 'Pengaturan', 'Kelola akun, usaha, dan pake
           <button type="button" data-tab="profil" class="on" aria-pressed="true">Profil Saya</button>
           <button type="button" data-tab="usaha" aria-pressed="false">Usaha</button>
           <button type="button" data-tab="keamanan" aria-pressed="false">Keamanan</button>
-          <button type="button" data-tab="paket" aria-pressed="false">Paket Langganan</button>
+          <?php if ($isOwner): ?><button type="button" data-tab="paket" aria-pressed="false">Paket Langganan</button><?php endif; ?>
+          <?php if ($isOwner): ?><button type="button" data-tab="staf" aria-pressed="false">Staf</button><?php endif; ?>
         </div>
       </div>
 
       <section id="v-profil" class="card st-card" aria-labelledby="h-profil">
         <div class="card-h"><h2 id="h-profil">Profil Saya</h2></div>
-        <p class="st-lead">Data akun pemilik. Email dipakai untuk masuk.</p>
+        <p class="st-lead">Data akun. Email dipakai untuk masuk.</p>
         <form id="f-profil" novalidate>
           <div class="fld"><label for="p-name">Nama lengkap</label><input id="p-name" name="full_name" maxlength="100" autocomplete="name" required><p class="ferr" id="e-full_name"></p></div>
           <div class="fld">
             <label for="p-email">Email</label>
             <div class="email-row">
               <input id="p-email" type="email" readonly aria-describedby="h-email">
-              <button class="btn line" type="button" id="btn-change-email">Ganti Email</button>
+              <?php if ($isOwner): ?><button class="btn line" type="button" id="btn-change-email">Ganti Email</button><?php endif; ?>
             </div>
-            <p class="hint" id="h-email">Email dipakai untuk login. Perubahan butuh verifikasi kode OTP yang dikirim ke email baru.</p>
+            <p class="hint" id="h-email"><?= $isOwner ? 'Email dipakai untuk login. Perubahan butuh verifikasi kode OTP yang dikirim ke email baru.' : 'Email diatur oleh pemilik warung.' ?></p>
           </div>
           <div class="fld"><label for="p-phone">Nomor HP</label><input id="p-phone" name="phone" type="tel" inputmode="tel" maxlength="20" autocomplete="tel" required><p class="ferr" id="e-phone"></p></div>
           <p class="ferr" id="e-form-profil"></p>
@@ -93,10 +100,20 @@ owner_layout_start($u, 'pengaturan', 'Pengaturan', 'Kelola akun, usaha, dan pake
         </form>
       </section>
 
+      <?php if ($isOwner): ?>
       <section id="v-paket" aria-label="Paket langganan" hidden>
         <section class="card pk-cur" id="pk-cur" aria-live="polite"></section>
         <div class="sec-h"><div class="sec-t"><h2>Pilihan Paket</h2></div></div>
         <div class="pl-grid" id="pk-plans"></div>
         <p class="sub-n">Pembayaran langganan sedang disiapkan. Paket berbayar akan dapat dipilih di sini setelah tersedia.</p>
       </section>
+      <?php endif; ?>
+
+      <?php if ($isOwner): ?>
+      <section id="v-staf" class="card st-card" aria-labelledby="h-staf" hidden>
+        <div class="card-h"><h2 id="h-staf">Kelola Staf</h2><button class="btn" type="button" id="btn-add-staff">Tambah Staf</button></div>
+        <p class="st-lead" id="staf-limit"></p>
+        <div class="wrap"><table class="tbl"><thead><tr><th>Nama</th><th>Email</th><th>Role</th><th>Status</th><th>Bergabung</th><th>Aksi</th></tr></thead><tbody id="staf-tbl"><tr><td colspan="6" class="empty">Memuat…</td></tr></tbody></table></div>
+      </section>
+      <?php endif; ?>
 <?php owner_layout_end(['js/pengaturan.js']); ?>

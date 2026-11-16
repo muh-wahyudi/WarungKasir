@@ -5,6 +5,8 @@ const rp = (n) => 'Rp' + num(Math.round(n));
 const short = (v) => (v >= 1e6 ? (v / 1e6).toFixed(1).replace('.', ',').replace(',0', '') + ' jt' : v >= 1000 ? (v / 1000).toFixed(1).replace('.', ',').replace(',0', '') + ' rb' : String(v));
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const ic = (n) => `<svg class="i" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+const can = (p) => !!(window.WK && window.WK.can && window.WK.can[p]);
+const role = () => (window.WK && window.WK.role) || 'owner';
 
 const dlg = $('#dlg');
 const modal = (title, html) => { $('#dlg-t').textContent = title; $('#dlg-b').innerHTML = html; if (!dlg.open) dlg.showModal(); };
@@ -54,6 +56,7 @@ document.addEventListener('click', (e) => {
   if (a) { e.preventDefault(); openSide(false); openDd(false); soon(a.dataset.soon); }
   const go = e.target.closest('[data-go]');
   if (go) location.href = go.dataset.go;
+  if (e.target.closest('[data-act="close"]')) { closeModal(); }
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { openSide(false); openDd(false); } });
 $('#logout').addEventListener('click', (e) => {
@@ -73,14 +76,13 @@ $('#logout').addEventListener('click', (e) => {
   let html5QrScanner = null;
   let activeScanId = null;
   let scannerContainer = null;
-  let scanSessionId = null;   // ID sesi yang sedang dipakai kamera (bisa berganti saat auto-approve)
-  let sessionWatch = null;    // polling status sesi, untuk menutup kamera saat 'completed'
+  let scanSessionId = null;
+  let sessionWatch = null;
   let lastCode = '', lastCodeAt = 0;
-  const PRESENCE_GAP_MS = 1200;   // barcode harus hilang dari kamera selama ini sebelum dihitung scan berikutnya
+  const PRESENCE_GAP_MS = 1200;
 
-  // ---- Suara beep saat barcode berhasil terkirim (dibuat dengan Web Audio, tanpa file audio) ----
   let audioCtx = null;
-  function unlockAudio() {   // harus dipanggil dari tap pengguna agar browser HP mengizinkan suara
+  function unlockAudio() {
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
@@ -103,7 +105,7 @@ $('#logout').addEventListener('click', (e) => {
         osc.connect(gain); gain.connect(audioCtx.destination);
         osc.start(t); osc.stop(t + 0.15);
       }
-      if (navigator.vibrate) navigator.vibrate(80);   // getar singkat (Android)
+      if (navigator.vibrate) navigator.vibrate(80);
     } catch (e) {}
   }
 
@@ -122,7 +124,7 @@ $('#logout').addEventListener('click', (e) => {
     if (document.visibilityState !== 'visible') return;
     const isEditingProduct = dlg.open && dlg.querySelector('#pf');
     if (isEditingProduct) return;
-    
+
     try {
       const r = await fetch('api/scan-request.php?pending=1', {
         credentials: 'same-origin',
@@ -131,16 +133,14 @@ $('#logout').addEventListener('click', (e) => {
       });
       if (!r.ok) return;
       const j = await r.json();
-      
+
       if (j.pending && j.pending.id !== activeScanId) {
         activeScanId = j.pending.id;
         if (isScanning) {
-          // JIKA KAMERA TERBUKA, OTOMATIS APPROVE
           await postJSON('api/scan-request.php', { action: 'approve', id: activeScanId });
           scanSessionId = activeScanId;
           toast('Sesi scan diperbarui otomatis.');
         } else {
-          // JIKA KAMERA TERTUTUP, MUNCULKAN NOTIFIKASI
           showScanConfirm(activeScanId);
         }
       }
@@ -159,16 +159,16 @@ $('#logout').addEventListener('click', (e) => {
         </div>
       `;
       $('#dlg-t').textContent = 'Permintaan Scan Barcode';
-      
-      $('#btn-approve-scan').addEventListener('click', () => { 
+
+      $('#btn-approve-scan').addEventListener('click', () => {
         $('#dlg-b').innerHTML = oldHtml; $('#dlg-t').textContent = oldTitle;
-        closeModal(); 
-        approveScan(id); 
+        closeModal();
+        approveScan(id);
       });
-      $('#btn-reject-scan').addEventListener('click', () => { 
+      $('#btn-reject-scan').addEventListener('click', () => {
         $('#dlg-b').innerHTML = oldHtml; $('#dlg-t').textContent = oldTitle;
-        closeModal(); 
-        rejectScan(id); 
+        closeModal();
+        rejectScan(id);
       });
     } else {
       modal('Permintaan Scan Barcode', `
@@ -219,9 +219,8 @@ $('#logout').addEventListener('click', (e) => {
     `;
     document.body.appendChild(overlay);
     scannerContainer = overlay;
-    const tEl = $('#toast'); if (tEl) tEl.style.zIndex = '300';   // agar pesan tampil di atas layar kamera
+    const tEl = $('#toast'); if (tEl) tEl.style.zIndex = '300';
 
-    // Pantau status sesi: tutup kamera saat desktop menyelesaikan transaksi
     scanSessionId = id;
     clearInterval(sessionWatch);
     sessionWatch = setInterval(async () => {
@@ -243,7 +242,7 @@ $('#logout').addEventListener('click', (e) => {
     }, 2000);
 
     html5QrScanner = new Html5Qrcode("scan-reader");
-    
+
     const scanConfig = {
       fps: 10,
       qrbox: { width: 280, height: 160 }
@@ -254,8 +253,6 @@ $('#logout').addEventListener('click', (e) => {
       scanConfig,
       async (decodedText) => {
         if (!isScanning || !scanSessionId) return;
-        // Selama barcode yang sama masih terlihat kamera, dihitung satu kali scan.
-        // Untuk menambah jumlah, jauhkan barcode dari kamera sebentar lalu arahkan lagi.
         const now = Date.now();
         const stillInView = decodedText === lastCode && now - lastCodeAt < PRESENCE_GAP_MS;
         lastCode = decodedText; lastCodeAt = now;
@@ -264,7 +261,7 @@ $('#logout').addEventListener('click', (e) => {
         try {
           const { ok, status, body } = await postJSON('api/scan-request.php', { action: 'scan', id: scanSessionId, barcode: decodedText });
           if (ok) { beep(); toast('Terkirim: ' + decodedText + (body.count > 1 ? ' (×' + body.count + ')' : '')); }
-          else if (status === 404 || status === 409) toast((body.message || 'Barcode ditolak.') + ' ' + decodedText);   // tidak terdaftar / stok habis: tanpa beep
+          else if (status === 404 || status === 409) toast((body.message || 'Barcode ditolak.') + ' ' + decodedText);
           else { lastCode = ''; toast('Gagal mengirim barcode. Coba lagi.'); }
         } catch (e) { lastCode = ''; toast('Tidak dapat terhubung ke server.'); }
       },

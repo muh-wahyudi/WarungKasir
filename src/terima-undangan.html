@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terima Undangan - WarungKasir</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="shell">
+  <aside class="showcase">
+    <a class="brand" href="login.html"><span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg></span><span>WarungKasir</span></a>
+    <div class="showcase-copy">
+      <h2>Bergabung dengan tim warung Anda.</h2>
+      <p>Buat kata sandi untuk mengaktifkan akun staf.</p>
+    </div>
+    <img src="assets/illustration.svg" alt="Ilustrasi dasbor penjualan dan struk kasir digital">
+  </aside>
+  <main class="panel">
+    <section class="card wide">
+      <a class="brand brand-mobile" href="login.html"><span class="logo" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8M10 20v-4h4v4"/></svg></span><span>WarungKasir</span></a>
+      <h1>Terima Undangan Staf</h1>
+      <p class="lead" id="invite-info">Memuat informasi undangan…</p>
+      <div id="alert" class="alert" role="alert"></div>
+
+      <form id="accept-form" novalidate hidden>
+        <div class="field">
+          <label for="name">Nama lengkap</label>
+          <div class="control"><span class="ico user" aria-hidden="true"></span>
+            <input id="name" name="full_name" type="text" placeholder="Nama Anda" autocomplete="name" required></div>
+        </div>
+        <div class="field">
+          <label for="phone">Nomor HP</label>
+          <div class="control"><span class="ico phone" aria-hidden="true"></span>
+            <input id="phone" name="phone" type="tel" inputmode="tel" placeholder="081234567890" autocomplete="tel" required></div>
+        </div>
+        <div class="field">
+          <label for="password">Kata sandi</label>
+          <div class="control has-toggle"><span class="ico lock" aria-hidden="true"></span>
+            <input id="password" name="password" type="password" placeholder="Minimal 8 karakter" autocomplete="new-password" minlength="8" required>
+            <button type="button" class="toggle" aria-label="Tampilkan kata sandi" aria-pressed="false"><span class="ico eye" aria-hidden="true"></span></button></div>
+        </div>
+        <div class="field">
+          <label for="confirm">Konfirmasi kata sandi</label>
+          <div class="control has-toggle"><span class="ico lock" aria-hidden="true"></span>
+            <input id="confirm" name="confirm" type="password" placeholder="Ulangi kata sandi" autocomplete="new-password" required>
+            <button type="button" class="toggle" aria-label="Tampilkan kata sandi" aria-pressed="false"><span class="ico eye" aria-hidden="true"></span></button></div>
+        </div>
+        <button class="btn" type="submit">Aktifkan Akun</button>
+      </form>
+      <p class="switch">Sudah punya akun? <a href="login.html">Masuk</a></p>
+    </section>
+  </main>
+</div>
+<script src="js/main.js"></script>
+<script>
+(function () {
+  const token = new URLSearchParams(location.search).get('token') || '';
+  const alertBox = document.getElementById('alert');
+  const info = document.getElementById('invite-info');
+  const form = document.getElementById('accept-form');
+
+  function show(type, msg) { alertBox.className = 'alert show ' + type; alertBox.textContent = msg; }
+
+  async function post(url, data) {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(data) });
+    let body = {};
+    try { body = await res.json(); } catch {}
+    return { ok: res.ok, body };
+  }
+
+  if (!token) { show('error', 'Token undangan tidak ditemukan di URL.'); return; }
+
+  fetch('api/team-accept.php?token=' + encodeURIComponent(token), { credentials: 'same-origin', cache: 'no-store' })
+    .then(r => r.json().then(j => ({ ok: r.ok, body: j })))
+    .then(({ ok, body }) => {
+      if (!ok) { show('error', body.message || 'Undangan tidak valid.'); return; }
+      info.innerHTML = 'Anda diundang sebagai <b>' + (body.role === 'admin' ? 'Admin' : 'Kasir') + '</b> di warung <b>' + body.business_name + '</b>. Email: <b>' + body.email + '</b>.';
+      form.hidden = false;
+    })
+    .catch(() => show('error', 'Tidak dapat memuat undangan.'));
+
+  const pw = document.getElementById('password'), cf = document.getElementById('confirm');
+  const check = () => cf.setCustomValidity(cf.value && cf.value !== pw.value ? 'Kata sandi tidak sama.' : '');
+  pw.addEventListener('input', check); cf.addEventListener('input', check);
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type=submit]');
+    if (btn.disabled) return;
+    btn.disabled = true; btn.textContent = 'Memproses…';
+    try {
+      const { ok, body } = await post('api/team-accept.php', {
+        token,
+        full_name: form.full_name.value,
+        phone: form.phone.value,
+        password: form.password.value,
+        confirm: form.confirm.value,
+      });
+      if (ok && body.redirect) { show('success', body.message || 'Berhasil.'); setTimeout(() => location.href = body.redirect, 800); return; }
+      const errs = body.errors || {};
+      Object.keys(errs).forEach(k => form.elements[k] && form.elements[k].setAttribute('aria-invalid', 'true'));
+      show('error', Object.values(errs).join(' ') || body.message || 'Gagal mengaktifkan akun.');
+    } catch { show('error', 'Tidak dapat terhubung ke server.'); }
+    btn.disabled = false; btn.textContent = 'Aktifkan Akun';
+  });
+})();
+</script>
+</body>
+</html>

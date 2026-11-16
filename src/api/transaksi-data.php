@@ -1,6 +1,4 @@
 <?php
-// Riwayat transaksi dan laporan penjualan pemilik usaha.
-// Logika periode, paket, dan perhitungan ada di includes/transaksi_lib.php; pembayaran di includes/payments.php.
 require __DIR__ . '/../includes/transaksi_lib.php';
 require __DIR__ . '/../includes/payments.php';
 
@@ -87,7 +85,9 @@ function payment_action(PDO $pdo, int $uid): void {
 }
 
 try {
-    $uid = owner_api_guard($pdo);
+    $me = owner_api_guard($pdo);
+    $uid = (int) $me['owner_id'];
+    owner_require($me, 'transaksi');
     $httpMethod = $_SERVER['REQUEST_METHOD'] ?? '';
     if ($httpMethod === 'POST') payment_action($pdo, $uid);
     if ($httpMethod !== 'GET') json_out(405, ['message' => 'Metode tidak diizinkan.']);

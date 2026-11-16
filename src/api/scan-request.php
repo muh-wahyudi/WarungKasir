@@ -8,8 +8,6 @@ function scan_purge_expired(PDO $pdo): void {
                 WHERE status IN ('pending','approved') AND expires_at < NOW()");
 }
 
-// Kolom barcode berisi satu entri per produk beserta jumlah scan: "kode:jumlah,kode:jumlah".
-// Format lama tanpa jumlah ("kode,kode") tetap terbaca, masing-masing dihitung 1.
 function scan_parse(?string $s): array {
     $m = [];
     foreach (($s === null || $s === '') ? [] : explode(',', $s) as $part) {
@@ -36,7 +34,9 @@ function scan_one(PDO $pdo, int $id, int $uid) {
 }
 
 try {
-    $uid = owner_api_guard($pdo);
+    $me = owner_api_guard($pdo);
+    $uid = (int) $me['owner_id'];
+    owner_require($me, 'kasir');
     $method = $_SERVER['REQUEST_METHOD'] ?? '';
 
     if ($method === 'GET') {
@@ -55,8 +55,6 @@ try {
             $row = scan_one($pdo, $id, $uid);
             if (!$row) json_out(404, ['message' => 'Sesi tidak ditemukan.']);
 
-            // Semua barcode yang di-scan pada sesi ini beserta jumlahnya (tidak dikosongkan).
-            // Desktop mengingat sendiri berapa yang sudah diproses.
             $map = scan_parse($row['barcode']);
             $scans = [];
             foreach ($map as $code => $n) $scans[] = ['code' => (string) $code, 'n' => (int) $n];
@@ -85,7 +83,7 @@ try {
 
         if ($action === 'create') {
             scan_purge_expired($pdo);
-            $mode = ($b['mode'] ?? '') === 'produk' ? 'produk' : 'kasir';   // 'kasir' = hanya produk terdaftar; 'produk' = kode baru boleh
+            $mode = ($b['mode'] ?? '') === 'produk' ? 'produk' : 'kasir';
 
             $existing = db_one($pdo, "SELECT id, status, scan_mode FROM scan_requests
                                       WHERE user_id = ? AND status IN ('pending','approved') AND expires_at > NOW()
@@ -94,16 +92,12 @@ try {
             if ($existing) {
                 if ($existing['status'] === 'pending') {
                     if ($existing['scan_mode'] === $mode) {
-                        // Jika masih pending (belum di-approve HP) dan jenisnya sama, kembalikan ID yang sama
                         json_out(201, ['message' => 'Melanjutkan sesi pending.', 'id' => (int) $existing['id']]);
                         return;
                     }
-                    // Jenis berbeda (Kasir vs Produk): batalkan yang lama agar HP tidak menyetujui sesi yang salah
                     $pdo->prepare("UPDATE scan_requests SET status = 'canceled' WHERE id = ? AND user_id = ?")
                         ->execute([(int) $existing['id'], $uid]);
                 }
-                // Jika sudah approved (kamera HP terbuka), buat sesi baru yang pending
-                // agar HP menerima sesi baru dan otomatis meng-approve.
             }
 
             $exp = (new DateTime('now', new DateTimeZone(APP_TZ)))->modify('+' . SCAN_TTL_SECONDS . ' seconds')->format('Y-m-d H:i:s');
@@ -131,18 +125,14 @@ try {
 
             if (preg_match('/[,:]/', $barcode)) json_out(400, ['message' => 'Barcode tidak valid.']);
 
-            // Sesi Kasir: hanya produk aktif milik pemilik yang diterima. Kode tidak dikenal ditolak
-            // (tidak disimpan, HP tidak berbunyi). Sesi Produk menerima kode apa pun (untuk produk baru).
             $code = $barcode;
             if ($row['scan_mode'] === 'kasir') {
                 $p = db_one($pdo, 'SELECT sku, stock FROM products WHERE owner_id = ? AND is_active = 1 AND sku = ? LIMIT 1', [$uid, $barcode]);
                 if (!$p) json_out(404, ['message' => 'Produk tidak terdaftar.']);
                 if ((int) $p['stock'] <= 0) json_out(409, ['message' => 'Stok produk habis.']);
-                $code = (string) $p['sku'];   // simpan persis seperti kode produk di database
+                $code = (string) $p['sku'];
             }
 
-            // Status tetap 'approved' (kamera HP tetap terbuka). Satu entri per produk;
-            // setiap scan menambah jumlahnya. Baris dikunci agar scan beruntun tidak saling menimpa.
             $pdo->beginTransaction();
             try {
                 $cur = db_one($pdo, 'SELECT status, barcode FROM scan_requests WHERE id = ? AND user_id = ? FOR UPDATE', [$id, $uid]);
@@ -162,7 +152,6 @@ try {
         }
 
         if ($action === 'complete') {
-            // Dipanggil desktop setelah "Simpan Transaksi" berhasil.
             $pdo->prepare("UPDATE scan_requests SET status = 'completed'
                            WHERE id = ? AND user_id = ? AND status IN ('pending','approved')")
                 ->execute([$id, $uid]);

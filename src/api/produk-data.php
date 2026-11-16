@@ -29,7 +29,6 @@ function dup_error(PDOException $ex): void {
     json_out(409, ['message' => $msg, 'errors' => [$field => $msg]]);
 }
 
-/* ---------- Cari produk berdasarkan SKU (untuk restock via scan) ---------- */
 function find_product_by_sku(PDO $pdo, int $uid): void {
     $sku = clean($_GET['sku'] ?? '');
     if ($sku === '') json_out(400, ['message' => 'SKU kosong.']);
@@ -50,7 +49,6 @@ function find_product_by_sku(PDO $pdo, int $uid): void {
     ]);
 }
 
-/* ---------- Daftar produk ---------- */
 function list_products(PDO $pdo, int $uid): void {
     $q = is_string($_GET['q'] ?? null) ? mb_substr(trim($_GET['q']), 0, 60) : '';
     $stok = is_string($_GET['stok'] ?? null) ? $_GET['stok'] : '';
@@ -93,12 +91,11 @@ function list_products(PDO $pdo, int $uid): void {
     ]);
 }
 
-/* ---------- Aksi POST ---------- */
-function handle_post(PDO $pdo, int $uid): void {
+function handle_post(PDO $pdo, int $uid, array $me): void {
+    owner_require($me, 'produk');
     $b = read_post_json();
     $action = is_string($b['action'] ?? null) ? $b['action'] : '';
 
-    // --- BLOK RESTOCK ---
     if ($action === 'restock') {
         $id = filter_var($b['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $addStock = filter_var($b['stock'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
@@ -112,11 +109,9 @@ function handle_post(PDO $pdo, int $uid): void {
         $pdo->prepare('UPDATE products SET stock = stock + ? WHERE id = ? AND owner_id = ?')
             ->execute([$addStock, $id, $uid]);
 
-        // WAJIB: Hentikan eksekusi di sini agar tidak masuk ke validasi produk baru
         json_out(200, ['message' => "Stok berhasil ditambahkan sebanyak {$addStock}."]);
     }
 
-    // --- BLOK CREATE ---
     if ($action === 'create') {
         [$e, $d] = parse_product($b);
         if ($e) json_out(400, ['message' => 'Periksa kembali data produk.', 'errors' => $e]);
@@ -141,14 +136,12 @@ function handle_post(PDO $pdo, int $uid): void {
         }
     }
 
-    // --- BLOK VALIDASI ID UNTUK UPDATE/DELETE ---
     $id = filter_var($b['id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
     if ($id === false) json_out(400, ['message' => 'Produk tidak valid.']);
-    
+
     $own = db_one($pdo, 'SELECT id, image FROM products WHERE id = ? AND owner_id = ? AND is_active = 1', [$id, $uid]);
     if (!$own) json_out(404, ['message' => 'Produk tidak ditemukan. Mungkin sudah dihapus.']);
 
-    // --- BLOK UPDATE ---
     if ($action === 'update') {
         [$e, $d] = parse_product($b);
         if ($e) json_out(400, ['message' => 'Periksa kembali data produk.', 'errors' => $e]);
@@ -162,14 +155,12 @@ function handle_post(PDO $pdo, int $uid): void {
         json_out(200, ['message' => 'Perubahan disimpan.']);
     }
 
-    // --- BLOK HAPUS FOTO ---
     if ($action === 'remove_image') {
         $pdo->prepare('UPDATE products SET image = NULL WHERE id = ? AND owner_id = ?')->execute([$id, $uid]);
         delete_image_file($own['image']);
         json_out(200, ['message' => 'Foto dihapus.']);
     }
 
-    // --- BLOK HAPUS PRODUK ---
     if ($action === 'delete') {
         $pdo->prepare('DELETE FROM products WHERE id = ? AND owner_id = ?')->execute([$id, $uid]);
         delete_image_file($own['image']);
@@ -180,16 +171,18 @@ function handle_post(PDO $pdo, int $uid): void {
 }
 
 try {
-    $uid = owner_api_guard($pdo);
+    $me = owner_api_guard($pdo);
+    $uid = (int) $me['owner_id'];
     $method = $_SERVER['REQUEST_METHOD'] ?? '';
     if ($method === 'GET') {
+        owner_require($me, 'produk');
         if (($_GET['action'] ?? '') === 'find_sku') {
             find_product_by_sku($pdo, $uid);
         } else {
             list_products($pdo, $uid);
         }
     }
-    elseif ($method === 'POST') handle_post($pdo, $uid);
+    elseif ($method === 'POST') handle_post($pdo, $uid, $me);
     else json_out(405, ['message' => 'Metode tidak diizinkan.']);
 } catch (Throwable $ex) {
     error_log('[produk] ' . $ex->getMessage());

@@ -1,18 +1,15 @@
 <?php
-// Data dashboard pemilik usaha (api/dashboard-data.php). Semua data diambil dari database dan hanya milik akun yang login.
-require __DIR__ . '/../includes/helpers.php';
+require __DIR__ . '/../includes/owner.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') json_out(405, ['message' => 'Metode tidak diizinkan.']);
-if (empty($_SESSION['user_id'])) json_out(401, ['message' => 'Sesi berakhir. Silakan masuk kembali.']);
 
 function one(PDO $pdo, string $sql, array $p = []) { $s = $pdo->prepare($sql); $s->execute($p); return $s->fetch(); }
 function all(PDO $pdo, string $sql, array $p = []): array { $s = $pdo->prepare($sql); $s->execute($p); return $s->fetchAll(); }
 
 try {
-    $me = one($pdo, 'SELECT id, role FROM users WHERE id = ? AND is_active = 1 LIMIT 1', [$_SESSION['user_id']]);
-    if (!$me) json_out(401, ['message' => 'Sesi tidak valid. Silakan masuk kembali.']);
-    if ($me['role'] !== 'owner') json_out(403, ['message' => 'Akses ditolak.']);
-    $uid = (int) $me['id'];   // selalu dari sesi, tidak pernah dari permintaan
+    $ctx = owner_api_guard($pdo);
+    owner_require($ctx, 'dashboard');
+    $uid = (int) $ctx['owner_id'];
 
     $period = is_string($_GET['period'] ?? null) ? $_GET['period'] : 'today';
     $days = ['today' => 1, '7' => 7, '30' => 30][$period] ?? null;
@@ -30,11 +27,9 @@ try {
     $MON = [1 => 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
     $fmtDate = fn(DateTime $d) => (int) $d->format('j') . ' ' . $MON[(int) $d->format('n')];
 
-    // Penjualan dan jumlah transaksi pada periode (hanya yang berstatus Selesai)
     $s = one($pdo, "SELECT COALESCE(SUM(total), 0) AS sales, COUNT(*) AS n FROM transactions
                     WHERE owner_id = ? AND status = 'Selesai' AND created_at >= ? AND created_at < ?", [$uid, $F, $T]);
 
-    // Grafik
     $chart = [];
     if ($period === 'today') {
         $b = array_fill(0, 12, 0);
@@ -65,7 +60,6 @@ try {
         }
     }
 
-    // Transaksi terbaru (semua status) beserta itemnya untuk detail
     $recent = all($pdo, "SELECT id, code, customer_name, total, payment_method, status, created_at FROM transactions
                          WHERE owner_id = ? ORDER BY created_at DESC, id DESC LIMIT 6", [$uid]);
     $items = [];
@@ -85,21 +79,18 @@ try {
         ];
     }, $recent);
 
-    // Produk terlaris pada periode
     $top = all($pdo, "SELECT i.product_name AS name, SUM(i.qty) AS qty, SUM(i.qty * i.unit_price) AS revenue, MAX(p.image) AS image
                       FROM transaction_items i JOIN transactions t ON t.id = i.transaction_id
                       LEFT JOIN products p ON p.id = i.product_id AND p.owner_id = t.owner_id
                       WHERE t.owner_id = ? AND t.status = 'Selesai' AND t.created_at >= ? AND t.created_at < ?
                       GROUP BY i.product_name ORDER BY qty DESC, revenue DESC LIMIT 5", [$uid, $F, $T]);
 
-    // Stok
     $products = (int) one($pdo, 'SELECT COUNT(*) AS n FROM products WHERE owner_id = ? AND is_active = 1', [$uid])['n'];
     $lowCount = (int) one($pdo, 'SELECT COUNT(*) AS n FROM products WHERE owner_id = ? AND is_active = 1 AND stock <= min_stock', [$uid])['n'];
     $restock = all($pdo, 'SELECT name, stock, min_stock FROM products WHERE owner_id = ? AND is_active = 1 AND stock <= min_stock
                           ORDER BY stock ASC, name ASC LIMIT 5', [$uid]);
     $pending = (int) one($pdo, "SELECT COUNT(*) AS n FROM transactions WHERE owner_id = ? AND status = 'Menunggu'", [$uid])['n'];
 
-    // Paket langganan
     $plan = one($pdo, "SELECT p.name, p.max_products, p.history_days, p.max_accounts FROM subscriptions s
                        JOIN plans p ON p.id = s.plan_id WHERE s.user_id = ? AND s.status = 'active'
                        ORDER BY s.started_at DESC, s.id DESC LIMIT 1", [$uid])

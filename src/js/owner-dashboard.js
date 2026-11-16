@@ -1,6 +1,3 @@
-// Dashboard pemilik usaha. Data diambil dari api/dashboard-data.php dan diperbarui otomatis.
-// Dashboard pemilik usaha. Data diambil dari api/dashboard-data.php dan diperbarui otomatis.
-// Fungsi bersama ($, rp, esc, modal, toast, dll.) ada di owner-common.js.
 const initials = (n) => esc(n.split(/\s+/).slice(0, 2).map((w) => w[0] || '').join('').toUpperCase());
 
 const POLL_MS = 15000;
@@ -14,8 +11,6 @@ function niceStep(range) {
   return [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw);
 }
 
-/* ---------- Waktu sesuai lokasi pengguna ---------- */
-// Memakai zona waktu perangkat/browser pengguna, bukan zona waktu server.
 const ZONA_ID = { 'Asia/Jakarta': 'WIB', 'Asia/Pontianak': 'WIB', 'Asia/Makassar': 'WITA', 'Asia/Jayapura': 'WIT' };
 function clientTime(d = new Date()) {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -24,7 +19,6 @@ function clientTime(d = new Date()) {
   return `${jam} ${zona}`.trim();
 }
 
-/* ---------- Pengambilan data ---------- */
 function setLive(ok, time) {
   const el = $('#live');
   el.className = 'live ' + (ok ? 'ok' : 'err');
@@ -41,7 +35,7 @@ async function load() {
   try {
     const r = await fetch(`api/dashboard-data.php?period=${p}`, { credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } });
     if (r.status === 401) { location.href = 'login.html'; return; }
-    if (r.status === 403) { location.href = 'admin.php'; return; }
+    if (r.status === 403) { location.href = 'kasir.php'; return; }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const j = await r.json();
     if (p === period) { data = j; render(); setLive(true, clientTime()); }
@@ -50,7 +44,7 @@ async function load() {
   } finally {
     busy = false;
     $$('.is-loading').forEach((x) => x.classList.remove('is-loading'));
-    if (p !== period) load();   // periode diganti saat menunggu
+    if (p !== period) load();
   }
 }
 
@@ -62,7 +56,6 @@ function setPeriod(p) {
   load();
 }
 
-/* ---------- Tampilan ---------- */
 function render() {
   const d = data, p = String(d.period), s = d.stats;
   $$('[data-p]').forEach((b) => { const on = b.dataset.p === p; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
@@ -82,7 +75,7 @@ function render() {
     return `<div class="col${i === d.chart.length - 1 ? ' top' : ''}" tabindex="0" style="--h:${h}" aria-label="${esc(c.tip)}: ${rp(c.value)}"><span class="tip">${esc(c.tip)} · ${rp(c.value)}</span><i style="height:${h}"></i>${c.label ? `<em>${esc(c.label)}</em>` : ''}</div>`;
   }).join('');
   $$('#cols .col').forEach((c) => {
-    const fit = () => {   // geser tooltip bila hampir keluar layar
+    const fit = () => {
       const t = $('.tip', c); t.style.display = 'block'; t.style.marginLeft = '0px';
       const r = t.getBoundingClientRect(), W = document.documentElement.clientWidth;
       t.style.marginLeft = (r.left < 8 ? 8 - r.left : r.right > W - 8 ? W - 8 - r.right : 0) + 'px'; t.style.display = '';
@@ -124,7 +117,6 @@ function render() {
   setAlerts(alerts);
 }
 
-/* ---------- Detail transaksi ---------- */
 function txDetail(i) {
   const x = data.recent[i]; if (!x) return;
   modal('Detail Transaksi', `<div class="dl"><span>ID</span><b>${esc(x.code)}</b></div><div class="dl"><span>Waktu</span><span>${esc(x.time)}</span></div><div class="dl"><span>Pelanggan</span><span>${esc(x.customer)}</span></div>`
@@ -132,7 +124,6 @@ function txDetail(i) {
     + `<div class="dl"><span>Total</span><b>${rp(x.total)}</b></div><div class="dl"><span>Metode</span><span>${esc(x.method)}</span></div><div class="dl"><span>Status</span><span class="badge ${SB[x.status] ?? ''}">${esc(x.status)}</span></div>`);
 }
 
-/* ---------- Interaksi ---------- */
 document.addEventListener('click', (e) => { const p = e.target.closest('[data-p]'); if (p) setPeriod(p.dataset.p); });
 document.addEventListener('keydown', (e) => {
   const r = e.target.closest && e.target.closest('#tx tr[data-i]');
@@ -141,7 +132,6 @@ document.addEventListener('keydown', (e) => {
 $('#tx').addEventListener('click', (e) => { const r = e.target.closest('tr[data-i]'); if (r) txDetail(+r.dataset.i); });
 $('#all-tx').addEventListener('click', () => { location.href = 'transaksi.php#riwayat'; });
 
-/* ---------- Mulai & perbarui otomatis ---------- */
 $('#stats').innerHTML = '<div class="card stat sk"></div>'.repeat(4);
 load();
 setInterval(() => { if (document.visibilityState === 'visible') load(); }, POLL_MS);

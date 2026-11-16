@@ -1,23 +1,9 @@
 <?php
-// Inti sistem Wallet: ledger saldo, biaya QRIS, pelepasan saldo, dan dasar withdrawal.
-//
-// Aturan yang dijaga di sini:
-//  - Setiap perubahan saldo = 1 baris ledger (wallet_transactions) + update wallets, dalam SATU transaksi database.
-//  - Baris wallet dikunci (SELECT ... FOR UPDATE) sebelum saldo dihitung, jadi dua proses bersamaan
-//    untuk pemilik yang sama berjalan bergantian dan saldo tidak pernah negatif.
-//  - idempotency_key UNIQUE: operasi yang sama tidak pernah tercatat dua kali.
-//  - Semua nominal Rupiah bulat. Tarif dalam basis points (100 bps = 1%).
-//  - Wallet tidak aktif sampai wallet_settings.wallet_start_at diisi.
 require_once __DIR__ . '/owner.php';
 require_once __DIR__ . '/midtrans.php';
 
 class WalletException extends RuntimeException {}
 
-/* ---------- Dasar ---------- */
-
-// Menjalankan $fn dalam transaksi database. Bila sudah ada transaksi berjalan, ikut di dalamnya.
-// Jika MySQL membatalkan transaksi karena deadlock/lock timeout (1213/1205), diulang sampai 4 kali;
-// aman karena seluruh isi $fn hanya operasi database yang ikut dibatalkan.
 function wallet_tx(PDO $pdo, callable $fn) {
     if ($pdo->inTransaction()) return $fn();
     for ($try = 1; ; $try++) {
@@ -57,10 +43,6 @@ function audit_log(PDO $pdo, int $adminId, string $action, string $entityType, ?
         ->execute([$adminId, $action, $entityType, $entityId, json_encode($detail, JSON_UNESCAPED_UNICODE), $reason, substr($_SERVER['REMOTE_ADDR'] ?? '', 0, 45)]);
 }
 
-/* ---------- Biaya QRIS ---------- */
-
-// MDR = gross x tarif; pajak = MDR x tarif pajak; dibulatkan ke Rupiah terdekat (setengah naik).
-// Ini ESTIMASI dari konfigurasi. Biaya aktual Midtrans bisa berbeda tipis dan dicocokkan lewat rekonsiliasi.
 function wallet_fee_calc(int $gross, int $mdrBps, int $taxBps): array {
     if ($gross <= 0 || $mdrBps < 0 || $taxBps < 0) throw new WalletException('Parameter biaya tidak valid.');
     $mdr = intdiv($gross * $mdrBps + 5000, 10000);
@@ -70,7 +52,6 @@ function wallet_fee_calc(int $gross, int $mdrBps, int $taxBps): array {
     return ['mdr' => $mdr, 'tax' => $tax, 'total' => $total, 'net' => $gross - $total];
 }
 
-// Waktu notifikasi Midtrans berzona WIB (Asia/Jakarta); diubah ke zona aplikasi.
 function wallet_midtrans_time(array $mt): string {
     $s = $mt['settlement_time'] ?? $mt['transaction_time'] ?? null;
     try {
@@ -81,8 +62,6 @@ function wallet_midtrans_time(array $mt): string {
     return $d->setTimezone(new DateTimeZone(APP_TZ))->format('Y-m-d H:i:s');
 }
 
-// Saat saldo pending boleh menjadi tersedia: N hari kerja setelah pembayaran (Sabtu/Minggu dilewati,
-// hari libur nasional belum dihitung), pukul 12.00.
 function wallet_release_at(string $paidAt, int $days): string {
     $d = new DateTime($paidAt, new DateTimeZone(APP_TZ));
     $d->setTime(12, 0, 0);
@@ -93,15 +72,8 @@ function wallet_release_at(string $paidAt, int $days): string {
     return $d->format('Y-m-d H:i:s');
 }
 
-/* ---------- Ledger ---------- */
-
-// Mencatat satu perubahan saldo. HARUS dipanggil di dalam transaksi database.
-// $d: pending, available, processing (perubahan, boleh negatif), withdrawn, fees (penambah total).
-// Mengembalikan ['duplicate' => true] bila idempotency_key sudah pernah dipakai.
 function wallet_post(PDO $pdo, int $uid, string $type, array $d, string $key, array $o = []): array {
     if (!$pdo->inTransaction()) throw new LogicException('wallet_post harus dipanggil di dalam transaksi database.');
-    // Kunci baris wallet LEBIH DULU. Membuat wallet (INSERT IGNORE) sebelum mengunci menimbulkan deadlock
-    // pada proses bersamaan, jadi pembuatan hanya dilakukan bila barisnya belum ada.
     $lock = 'SELECT pending_balance, available_balance, processing_balance FROM wallets WHERE owner_id = ? FOR UPDATE';
     $w = db_one($pdo, $lock, [$uid]);
     if (!$w) { wallet_ensure($pdo, $uid); $w = db_one($pdo, $lock, [$uid]); }
@@ -114,8 +86,6 @@ function wallet_post(PDO $pdo, int $uid, string $type, array $d, string $key, ar
     $na = (int) $w['available_balance'] + $da;
     $nr = (int) $w['processing_balance'] + $dr;
     if ($np < 0 || $na < 0 || $nr < 0) {
-        // Pengulangan operasi yang sudah pernah tercatat harus dijawab 'duplicate', bukan 'saldo kurang'.
-        // Pembacaan terkunci hanya dilakukan di jalur gagal ini, yang segera membatalkan transaksi.
         if (db_one($pdo, 'SELECT id FROM wallet_transactions WHERE idempotency_key = ? FOR UPDATE', [$key])) return ['duplicate' => true];
         throw new WalletException('Saldo tidak mencukupi.');
     }
@@ -146,21 +116,16 @@ function wallet_summary(PDO $pdo, int $uid): array {
     ];
 }
 
-/* ---------- Pembayaran QRIS masuk ---------- */
-
-// Mencatat pembayaran QRIS kasir yang sudah lunas ke saldo PENDING pemilik. Aman dipanggil berulang.
-// $mt = balasan status Midtrans (bila null, diambil dari Midtrans). Hasil: credited | duplicate | wallet_inactive | ...
 function wallet_credit_payment(PDO $pdo, int $trxId, ?array $mt = null): array {
     $t = db_one($pdo, 'SELECT id, owner_id, code, total, payment_method, status, midtrans_order_id, created_at FROM transactions WHERE id = ?', [$trxId]);
     if (!$t) return ['result' => 'not_found'];
-    // Hanya QRIS kasir (WK-). Pembayaran langganan (SUB-) adalah pendapatan platform, bukan saldo warung.
     if ($t['payment_method'] !== 'QRIS' || strncmp((string) $t['midtrans_order_id'], 'WK-', 3) !== 0) return ['result' => 'not_eligible'];
     if (!wallet_is_active($pdo)) return ['result' => 'wallet_inactive'];
     if ($t['created_at'] < trim((string) wallet_cfg($pdo, 'wallet_start_at'))) return ['result' => 'before_start'];
     if ($t['status'] !== 'Selesai') return ['result' => 'not_paid'];
     if (db_one($pdo, 'SELECT id FROM payment_fees WHERE transaction_id = ?', [$trxId])) return ['result' => 'duplicate'];
 
-    if ($mt === null) $mt = midtrans_get_status((string) $t['midtrans_order_id']);   // di luar transaksi database
+    if ($mt === null) $mt = midtrans_get_status((string) $t['midtrans_order_id']);
     if (pay_classify($mt) !== 'paid') return ['result' => 'not_paid'];
     if (($mt['order_id'] ?? '') !== $t['midtrans_order_id']) return ['result' => 'order_mismatch'];
     $gross = (int) round((float) ($mt['gross_amount'] ?? 0));
@@ -179,7 +144,7 @@ function wallet_credit_payment(PDO $pdo, int $trxId, ?array $mt = null): array {
     $uid = (int) $t['owner_id'];
 
     return wallet_tx($pdo, function () use ($pdo, $t, $uid, $gross, $mtTx, $mdrBps, $taxBps, $fee, $paidAt, $releaseAt, $trxId) {
-        db_one($pdo, 'SELECT id FROM transactions WHERE id = ? FOR UPDATE', [$trxId]);   // serialkan proses yang bersamaan
+        db_one($pdo, 'SELECT id FROM transactions WHERE id = ? FOR UPDATE', [$trxId]);
         try {
             $pdo->prepare("INSERT INTO payment_fees (transaction_id, owner_id, midtrans_order_id, midtrans_transaction_id, gross_amount,
                              mdr_bps, tax_bps, mdr_amount, tax_amount, total_fee, net_amount, fee_source, payment_status, paid_at, release_at)
@@ -198,13 +163,12 @@ function wallet_credit_payment(PDO $pdo, int $trxId, ?array $mt = null): array {
     });
 }
 
-// Pembayaran dibalik (refund) saat saldonya MASIH pending. Bila sudah tersedia, tidak diubah otomatis.
 function wallet_reverse_payment(PDO $pdo, int $feeId): string {
     return wallet_tx($pdo, function () use ($pdo, $feeId) {
         $f = db_one($pdo, 'SELECT id, owner_id, net_amount, released_at, reversed_at FROM payment_fees WHERE id = ? FOR UPDATE', [$feeId]);
         if (!$f) return 'not_found';
         if ($f['reversed_at'] !== null) return 'duplicate';
-        if ($f['released_at'] !== null) return 'needs_review';   // dana sudah tersedia: perlu keputusan admin
+        if ($f['released_at'] !== null) return 'needs_review';
         $r = wallet_post($pdo, (int) $f['owner_id'], 'payment_reversal', ['pending' => -(int) $f['net_amount']], 'rev:' . $feeId,
             ['ref_type' => 'payment_fee', 'ref_id' => $feeId, 'desc' => 'Pembayaran dibalik (refund)']);
         $pdo->prepare('UPDATE payment_fees SET reversed_at = NOW() WHERE id = ?')->execute([$feeId]);
@@ -212,11 +176,6 @@ function wallet_reverse_payment(PDO $pdo, int $feeId): string {
     });
 }
 
-/* ---------- Pending -> Available ---------- */
-
-// Melepas SATU pembayaran: pending -> tersedia. Dipakai tugas berkala dan tombol "Lepas sekarang" admin.
-// Idempoten: pembayaran yang sudah dilepas/dibalik dilewati. Jika $adminId diisi, tercatat di audit log.
-// Mengembalikan: ok | skip | reversed | not_found
 function wallet_release_fee(PDO $pdo, int $feeId, ?int $adminId = null, ?string $reason = null): string {
     return wallet_tx($pdo, function () use ($pdo, $feeId, $adminId, $reason) {
         $r = db_one($pdo, 'SELECT id, owner_id, net_amount, released_at, reversed_at FROM payment_fees WHERE id = ? FOR UPDATE', [$feeId]);
@@ -234,10 +193,6 @@ function wallet_release_fee(PDO $pdo, int $feeId, ?int $adminId = null, ?string 
     });
 }
 
-// Memindahkan saldo pending yang sudah melewati jeda settlement ke tersedia. Sebelum dipindah,
-// status pembayaran di Midtrans diperiksa ulang; bila bukan 'settlement' lagi (mis. refund), saldo ditahan.
-// Galat pada satu pembayaran dicatat dan tidak menghentikan pembayaran lain.
-// $verify (opsional, untuk pengujian): fn(string $orderId): string  => hasil seperti pay_classify().
 function wallet_release_due(PDO $pdo, ?callable $verify = null, int $limit = 200): array {
     $verify = $verify ?? fn($order) => pay_classify(midtrans_get_status($order));
     $out = ['released' => 0, 'held' => 0, 'skipped' => 0, 'errors' => 0];
@@ -261,8 +216,6 @@ function wallet_release_due(PDO $pdo, ?callable $verify = null, int $limit = 200
     return $out;
 }
 
-// Melengkapi pembayaran QRIS yang sudah Selesai tetapi belum tercatat di wallet
-// (misalnya pencatatan sempat gagal). Aman diulang.
 function wallet_backfill_missing(PDO $pdo, int $limit = 100): array {
     $out = ['credited' => 0, 'other' => 0];
     if (!wallet_is_active($pdo)) return $out;
@@ -282,32 +235,26 @@ function wallet_backfill_missing(PDO $pdo, int $limit = 100): array {
     return $out;
 }
 
-/* ---------- Withdrawal (operasi saldo; alur pengajuan dan admin dibuat di tahap berikutnya) ---------- */
-
-// Mengunci saldo tersedia untuk pengajuan: available -> processing.
 function wallet_withdrawal_hold(PDO $pdo, int $uid, int $wdId, int $amount): array {
     if ($amount <= 0) throw new WalletException('Nominal tidak valid.');
     return wallet_tx($pdo, fn() => wallet_post($pdo, $uid, 'withdrawal_hold', ['available' => -$amount, 'processing' => $amount],
         "wd:$wdId:hold", ['ref_type' => 'withdrawal', 'ref_id' => $wdId, 'desc' => 'Saldo dikunci untuk withdrawal #' . $wdId]));
 }
 
-// Transfer berhasil: saldo processing dipotong permanen.
 function wallet_withdrawal_complete(PDO $pdo, int $uid, int $wdId, int $amount): array {
     return wallet_tx($pdo, fn() => wallet_post($pdo, $uid, 'withdrawal_complete', ['processing' => -$amount, 'withdrawn' => $amount],
         "wd:$wdId:complete", ['ref_type' => 'withdrawal', 'ref_id' => $wdId, 'desc' => 'Withdrawal #' . $wdId . ' berhasil']));
 }
 
-// Ditolak atau gagal: saldo kembali ke tersedia.
 function wallet_withdrawal_release(PDO $pdo, int $uid, int $wdId, int $amount, string $why): array {
     return wallet_tx($pdo, fn() => wallet_post($pdo, $uid, 'withdrawal_release', ['processing' => -$amount, 'available' => $amount],
         "wd:$wdId:release", ['ref_type' => 'withdrawal', 'ref_id' => $wdId, 'desc' => 'Withdrawal #' . $wdId . ' ' . $why]));
 }
 
-// Penyesuaian manual oleh admin: wajib alasan, tercatat di ledger dan audit log.
 function wallet_admin_adjust(PDO $pdo, int $adminId, int $uid, string $bucket, int $delta, string $reason, string $requestKey): array {
     $reason = trim($reason);
     if (!in_array($bucket, ['pending', 'available'], true) || $delta === 0) throw new WalletException('Penyesuaian tidak valid.');
-    if (mb_strlen($reason) < 5) throw new WalletException('Alasan penyesuaian wajib diisi (minimal 5 karakter).');
+    if (mb_strlen($reason) < 20) throw new WalletException('Alasan penyesuaian wajib diisi (minimal 20 karakter).');
     return wallet_tx($pdo, function () use ($pdo, $adminId, $uid, $bucket, $delta, $reason, $requestKey) {
         $r = wallet_post($pdo, $uid, 'manual_adjustment', [$bucket => $delta], 'adj:' . $requestKey,
             ['reason' => $reason, 'actor' => $adminId, 'desc' => 'Penyesuaian manual admin']);
@@ -316,4 +263,4 @@ function wallet_admin_adjust(PDO $pdo, int $adminId, int $uid, string $bucket, i
     });
 }
 
-require_once __DIR__ . '/payments.php';   // pay_classify() dan kawan-kawan
+require_once __DIR__ . '/payments.php';

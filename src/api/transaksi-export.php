@@ -1,6 +1,4 @@
 <?php
-// Ekspor Excel (.xlsx) riwayat transaksi atau laporan penjualan (api/transaksi-export.php).
-// Hanya untuk paket berbayar (Pro dan Pro Max). Periode dan filter sama dengan halaman Transaksi & Laporan.
 require __DIR__ . '/../includes/transaksi_lib.php';
 require __DIR__ . '/../includes/xlsx.php';
 
@@ -94,7 +92,9 @@ function export_report(PDO $pdo, int $uid, array $ctx): array {
 }
 
 try {
-    $uid = owner_api_guard($pdo);
+    $me = owner_api_guard($pdo);
+    $uid = (int) $me['owner_id'];
+    owner_require($me, 'transaksi');
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') json_out(405, ['message' => 'Metode tidak diizinkan.']);
 
     $ctx = trx_context($pdo, $uid);
