@@ -21,7 +21,7 @@ function admin_layout_start(array $u, string $active, string $title, string $cru
 
     $navItems = [
         ['dash', 'Dashboard Admin', 'home', 'admin-dashboard.php'],
-        ['users', 'Pengguna', 'users', 'admin.php#users'],
+        ['users', 'Pengguna', 'users', 'admin-users.php'],
         ['subs', 'Langganan', 'repeat', 'admin.php#subs'],
         ['pay', 'Pembayaran', 'card', 'admin.php#pay'],
         ['wallet', 'Wallet & Withdrawal', 'wallet', 'admin-wallet.php'],

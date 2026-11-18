@@ -19,7 +19,6 @@ try {
         $st->execute([$email]);
         $user = $st->fetch();
     }
-    // Tetap hitung hash jika email tidak ada, agar waktu respons sama
     $ok = $user ? password_verify($password, $user['password_hash']) : (bool) password_hash('x', PASSWORD_DEFAULT) && false;
 
     if (!$user || !$ok || !$user['is_active']) {
@@ -36,7 +35,12 @@ try {
             'samesite' => 'Lax', 'secure' => !empty($_SERVER['HTTPS']),
         ]);
     }
-    json_out(200, ['message' => 'Berhasil masuk.', 'redirect' => $user['role'] === 'admin' ? 'admin.php' : 'owner-dashboard.php']);
+
+    $redirect = 'owner-dashboard.php';
+    if ($user['role'] === 'admin') $redirect = 'admin-dashboard.php';
+    elseif ($user['role'] === 'kasir') $redirect = 'kasir.php';
+
+    json_out(200, ['message' => 'Berhasil masuk.', 'redirect' => $redirect]);
 } catch (PDOException $ex) {
     error_log('[login] ' . $ex->getMessage());
     json_out(500, ['message' => 'Terjadi kesalahan pada server. Coba lagi nanti.']);

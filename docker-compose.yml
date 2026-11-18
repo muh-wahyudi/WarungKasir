@@ -17,6 +17,25 @@ services:
     depends_on:
       - db
 
+  wallet-cron:
+    build: .
+    working_dir: /var/www/html
+    volumes:
+      - ./src:/var/www/html
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      WALLET_ENC_KEY: ${WALLET_ENC_KEY}
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-WarungKasir}
+    depends_on:
+      - db
+    restart: unless-stopped
+    command: sh -c "while true; do php /var/www/html/cron/wallet-cron.php; sleep 300; done"
+
   db:
     image: mysql:8.0
     environment:
